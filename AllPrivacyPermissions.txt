@@ -1,5 +1,5 @@
 -- ===========================================================
--- AllPrivacyPermissions.applescript v4
+-- AllPrivacyPermissions.applescript v5
 -- Schnell & gezielt: Alle Rechte für alle Apps aktivieren
 -- NUR FÜR TESTSYSTEME
 -- ===========================================================
@@ -8,8 +8,8 @@
 -- ║  KONFIGURATION                                           ║
 -- ╚══════════════════════════════════════════════════════════╝
 
-property _AdminUser : "admin"
-property _AdminPass : "Test1234"
+property _AdminUser : "praxis"
+property _AdminPass : "praxis"
 
 property _DelayNav : 1.0       -- Warten nach Sektions-Klick (Ladezeit)
 property _DelayClick : 0.5     -- Warten nach Checkbox-Klick
@@ -73,7 +73,7 @@ on handleAuthDialog(_U, _P)
                             repeat with _Btn in every button of _W
                                 set _N to name of _Btn
                                 if _N is not missing value then
-                                    if _N is not in {"Abbrechen", "Cancel", "Nicht erlauben", "Don't Allow", "Deny", "Ablehnen"} then
+                                    if _N is not in {"Abbrechen", "Cancel", "Nicht erlauben", "Don't Allow", "Deny", "Ablehnen", "Beenden & erneut öffnen"} then
                                         click _Btn
                                         delay 0.3
                                         return true
@@ -113,7 +113,7 @@ on handleAuthDialog(_U, _P)
                                     repeat with _Btn in every button
                                         set _N to name of _Btn
                                         if _N is not missing value then
-                                            if _N is not in {"Abbrechen", "Cancel", "Nicht erlauben", "Don't Allow", "Deny", "Ablehnen"} then
+                                            if _N is not in {"Abbrechen", "Cancel", "Nicht erlauben", "Don't Allow", "Deny", "Ablehnen", "Beenden & erneut öffnen"} then
                                                 click _Btn
                                                 set _Clicked to true
                                                 delay 0.3
@@ -214,6 +214,14 @@ on clickNavSection(_SectionName)
             end try
         end tell
     end tell
+
+    -- Fallback: Sektionen, die nicht in der Sidebar sind (z.B. Vollständiger Festplattenzugriff)
+    if _SectionName is "Vollständiger Festplattenzugriff" then
+        do shell script "open 'x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles'"
+        delay 1.5
+        return true
+    end if
+
     return false
 end clickNavSection
 
