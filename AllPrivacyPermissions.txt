@@ -1,5 +1,5 @@
 -- ===========================================================
--- AllPrivacyPermissions.applescript v6
+-- AllPrivacyPermissions.applescript v7
 -- Schnell & gezielt: Alle Rechte für alle Apps aktivieren
 -- NUR FÜR TESTSYSTEME
 -- ===========================================================
@@ -93,19 +93,17 @@ on handleAuthDialog(_U, _P)
                             tell sheet 1 of window 1
                                 set _F to every text field
                                 if (count of _F) > 0 then
-                                    -- Passwort-Sheet: nur wenn noch nicht erledigt
-                                    if not _PwDone then
-                                        if (count of _F) >= 2 then
-                                            set value of text field 1 to _U
-                                            delay 0.15
-                                            set value of text field 2 to _P
-                                        else
-                                            set value of text field 1 to _P
-                                        end if
-                                        delay 0.2
-                                        key code 36 -- Return
-                                        delay 0.5
+                                    -- Passwort-Sheet: immer bearbeiten wenn Textfelder vorhanden
+                                    if (count of _F) >= 2 then
+                                        set value of text field 1 to _U
+                                        delay 0.15
+                                        set value of text field 2 to _P
+                                    else
+                                        set value of text field 1 to _P
                                     end if
+                                    delay 0.2
+                                    key code 36 -- Return
+                                    delay 0.5
                                 else
                                     -- Bestätigungs-Sheet (kein Passwortfeld)
                                     -- "Beenden & erneut öffnen" überspringen → "Nein" klicken
