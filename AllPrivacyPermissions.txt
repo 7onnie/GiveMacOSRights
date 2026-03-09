@@ -1,7 +1,7 @@
 -- ===========================================================
--- AllPrivacyPermissions.applescript
--- Aktiviert ALLE Datenschutz-Rechte für ALLE Apps in macOS
--- NUR FÜR TESTSYSTEME!
+-- AllPrivacyPermissions.applescript v3
+-- Schnell & gezielt: Alle Rechte für alle Apps aktivieren
+-- NUR FÜR TESTSYSTEME
 -- ===========================================================
 
 -- ╔══════════════════════════════════════════════════════════╗
@@ -11,45 +11,42 @@
 property _AdminUser : "admin"
 property _AdminPass : "Test1234"
 
-property _DelayShort : 0.3
-property _DelayMed : 0.7
-property _DelayAfterNav : 1.5
-property _DelayAfterClick : 0.8
+property _DelayNav : 1.0       -- Warten nach Sektions-Klick (Ladezeit)
+property _DelayClick : 0.5     -- Warten nach Checkbox-Klick
+property _DelayAuth : 0.3      -- Warten nach Auth-Dialog
 
--- Alle bekannten Datenschutz-Sektionen: {DE-Name, EN-Name}
--- Wird als "Name_Navigator" als AXIdentifier der Sidebar-Buttons gesucht
-property _Sections : {¬
-    {"Mikrofon", "Microphone"}, ¬
-    {"Kamera", "Camera"}, ¬
-    {"Kontakte", "Contacts"}, ¬
-    {"Kalender", "Calendars"}, ¬
-    {"Erinnerungen", "Reminders"}, ¬
-    {"Fotos", "Photos"}, ¬
-    {"Bluetooth", "Bluetooth"}, ¬
-    {"Lokales Netzwerk", "Local Network"}, ¬
-    {"HomeKit", "HomeKit"}, ¬
-    {"Sprache & Spracherkennung", "Speech Recognition"}, ¬
-    {"Medien und Apple Music", "Media & Apple Music"}, ¬
-    {"Dateien und Ordner", "Files and Folders"}, ¬
-    {"Vollständiger Festplattenzugriff", "Full Disk Access"}, ¬
-    {"Bildschirmaufnahme", "Screen Recording"}, ¬
-    {"Barrierefreiheit", "Accessibility"}, ¬
-    {"Eingabeüberwachung", "Input Monitoring"}, ¬
-    {"Automatisierung", "Automation"}, ¬
-    {"Fokus", "Focus"} ¬
+-- Ziel-Sektionen: exakte deutsche AXIdentifier ohne "_Navigator"-Suffix
+-- Aus dem Accessibility Inspector ermittelt (14 Buttons auf diesem System)
+property _TargetSections : {¬
+    "App-Verwaltung", ¬
+    "Aufnahme von Bildschirm & Systemaudio", ¬
+    "Automation", ¬
+    "Bedienungshilfen", ¬
+    "Bluetooth", ¬
+    "Eingabeüberwachung", ¬
+    "Kamera", ¬
+    "Lokales Netzwerk", ¬
+    "Mikrofon", ¬
+    "Remote Desktop", ¬
+    "Spracherkennung" ¬
 }
+
+-- Alle bekannten Sektionen (vollständige Liste für "Alles aktivieren"):
+-- "App-Verwaltung", "Aufnahme von Bildschirm & Systemaudio", "Automation",
+-- "Bedienungshilfen", "Bewegung & Fitness", "Bluetooth", "Eingabeüberwachung",
+-- "Entwickler-Werkzeuge", "Fokus", "Kamera", "Lokales Netzwerk",
+-- "Mikrofon", "Remote Desktop", "Spracherkennung"
 
 
 -- ╔══════════════════════════════════════════════════════════╗
--- ║  HANDLER: Passwort/Auth-Dialog erkennen und ausfüllen   ║
--- ║  Unterstützt: SecurityAgent-Prozess + Sheets            ║
+-- ║  HANDLER: Auth-Dialog ausfüllen                         ║
+-- ║  Nur aufrufen wenn Checkbox-Klick fehlschlug            ║
 -- ╚══════════════════════════════════════════════════════════╝
 
 on handleAuthDialog(_U, _P)
-    delay 0.5
+    delay 0.3
     tell application "System Events"
-
-        -- Fall 1: SecurityAgent (separater Prozess - typisch für Schloss-Dialoge)
+        -- Fall 1: SecurityAgent (Schloss-Dialog, separater Prozess)
         if exists process "SecurityAgent" then
             tell process "SecurityAgent"
                 try
@@ -64,16 +61,14 @@ on handleAuthDialog(_U, _P)
                                 set value of text field 1 to _P
                             end if
                             delay 0.2
-                            key code 36 -- Return/Enter
-                            delay 0.3
+                            key code 36 -- Return
                             return true
                         end if
                     end repeat
                 end try
             end tell
         end if
-
-        -- Fall 2: Sheet innerhalb System Settings
+        -- Fall 2: Sheet in System Settings
         if exists process "System Settings" then
             tell process "System Settings"
                 try
@@ -89,8 +84,7 @@ on handleAuthDialog(_U, _P)
                                     set value of text field 1 to _P
                                 end if
                                 delay 0.2
-                                key code 36 -- Return/Enter
-                                delay 0.3
+                                key code 36 -- Return
                                 return true
                             end if
                         end tell
@@ -98,93 +92,47 @@ on handleAuthDialog(_U, _P)
                 end try
             end tell
         end if
-
     end tell
     return false
 end handleAuthDialog
 
 
 -- ╔══════════════════════════════════════════════════════════╗
--- ║  HANDLER: Entsperren/Unlock-Button suchen und klicken   ║
--- ║  Sucht in 3 Tiefen-Ebenen des Fensters                  ║
+-- ║  HANDLER: Navigator-Button klicken                      ║
+-- ║  Buttons liegen direkt als UI elements in group 4       ║
+-- ║  (kein Sub-Group nötig - bestätigt durch Accessibility) ║
 -- ╚══════════════════════════════════════════════════════════╝
 
-on tryUnlock(_U, _P)
-    set _Clicked to false
+on clickNavSection(_SectionName)
     tell application "System Events"
         tell process "System Settings"
             try
-                set _W to window 1
-
-                -- Ebene 1: direkte Buttons im Fenster
-                repeat with _B in every button of _W
-                    set _N to name of _B
-                    if _N contains "ntsperren" or _N contains "nlock" then
-                        click _B
-                        set _Clicked to true
-                        exit repeat
+                set _NavGroup to group 4 of scroll area 1 of group 1 of group 3 of splitter group 1 of group 1 of window 1
+                repeat with _E in every UI element of _NavGroup
+                    if class of _E is button then
+                        try
+                            if (value of attribute "AXIdentifier" of _E) = (_SectionName & "_Navigator") then
+                                click _E
+                                return true
+                            end if
+                        end try
                     end if
                 end repeat
-
-                -- Ebene 2: Buttons eine Gruppen-Ebene tiefer
-                if not _Clicked then
-                    repeat with _G in every group of _W
-                        repeat with _B in every button of _G
-                            set _N to name of _B
-                            if _N contains "ntsperren" or _N contains "nlock" then
-                                click _B
-                                set _Clicked to true
-                                exit repeat
-                            end if
-                        end repeat
-                        if _Clicked then
-                            exit repeat
-                        end if
-                    end repeat
-                end if
-
-                -- Ebene 3: Buttons zwei Gruppen-Ebenen tiefer
-                if not _Clicked then
-                    repeat with _G1 in every group of _W
-                        repeat with _G2 in every group of _G1
-                            repeat with _B in every button of _G2
-                                set _N to name of _B
-                                if _N contains "ntsperren" or _N contains "nlock" then
-                                    click _B
-                                    set _Clicked to true
-                                    exit repeat
-                                end if
-                            end repeat
-                            if _Clicked then
-                                exit repeat
-                            end if
-                        end repeat
-                        if _Clicked then
-                            exit repeat
-                        end if
-                    end repeat
-                end if
-
             end try
         end tell
     end tell
-
-    if _Clicked then
-        delay 0.5
-        my handleAuthDialog(_U, _P)
-        delay _DelayMed
-    end if
-
-    return _Clicked
-end tryUnlock
+    return false
+end clickNavSection
 
 
 -- ╔══════════════════════════════════════════════════════════╗
--- ║  HANDLER: Alle Checkboxen in einem Outline aktivieren   ║
--- ║  Mit Retry-Logik für nicht-aktivierbare Einträge        ║
+-- ║  HANDLER: Alle Checkboxen in aktueller Sektion          ║
+-- ║  Sucht bis Tiefe 3 (Tiefe 3 für Automation-Sektion)    ║
+-- ║  Auth-Dialog nur bei fehlgeschlagenem Klick             ║
+-- ║  Retry-Logik für nicht-aktivierbare Einträge            ║
 -- ╚══════════════════════════════════════════════════════════╝
 
-on enableCheckboxesInOutline(_OutlinePath, _U, _P)
+on enableCurrentSection(_U, _P)
     set _Enabled to 0
     set _NeedsRetry to true
     set _SkipCount to 0
@@ -194,282 +142,147 @@ on enableCheckboxesInOutline(_OutlinePath, _U, _P)
         set _FoundIdx to 0
 
         tell application "System Events"
-            try
-                set _Outline to _OutlinePath
-                repeat with _Row in every UI element of _Outline
-                    if class of _Row is row then
-                        set _RowDone to false
+            tell process "System Settings"
+                try
+                    set _Outline to outline 1 of scroll area 1 of group 1 of scroll area 1 of group 1 of group 3 of splitter group 1 of group 1 of window 1
+                    repeat with _Row in every UI element of _Outline
+                        if class of _Row is row then
+                            set _RowDone to false
 
-                        -- Tiefe 1: UI elements direkt in der Row
-                        repeat with _C1 in every UI element of _Row
-                            if _RowDone then exit repeat
+                            repeat with _C1 in every UI element of _Row
+                                if _RowDone then exit repeat
 
-                            -- Checkbox direkt in C1
-                            if class of _C1 is checkbox then
-                                if _FoundIdx < _SkipCount then
-                                    set _FoundIdx to _FoundIdx + 1
-                                else
-                                    if value of _C1 is 0 then
-                                        click _C1
-                                        delay _DelayAfterClick
-                                        my handleAuthDialog(_U, _P)
-                                        delay 0.4
+                                -- Tiefe 1: Checkbox direkt in Row
+                                if class of _C1 is checkbox then
+                                    if _FoundIdx < _SkipCount then
+                                        set _FoundIdx to _FoundIdx + 1
+                                    else
                                         if value of _C1 is 0 then
-                                            -- Nicht aktivierbar, beim nächsten Durchlauf überspringen
-                                            set _NeedsRetry to true
-                                            set _SkipCount to _SkipCount + 1
-                                            set _RowDone to true
-                                            exit repeat
-                                        end if
-                                        set _Enabled to _Enabled + 1
-                                    end if
-                                    set _RowDone to true
-                                    exit repeat
-                                end if
-
-                            -- Tiefe 2: UI elements innerhalb C1
-                            else if class of _C1 is UI element then
-                                repeat with _C2 in every UI element of _C1
-                                    if class of _C2 is checkbox then
-                                        if _FoundIdx < _SkipCount then
-                                            set _FoundIdx to _FoundIdx + 1
-                                        else
-                                            if value of _C2 is 0 then
-                                                click _C2
-                                                delay _DelayAfterClick
+                                            click _C1
+                                            delay _DelayClick
+                                            if value of _C1 is 0 then
+                                                -- Klick hat nicht funktioniert: Auth oder nicht aktivierbar
                                                 my handleAuthDialog(_U, _P)
-                                                delay 0.4
-                                                if value of _C2 is 0 then
+                                                delay _DelayAuth
+                                                if value of _C1 is 0 then
+                                                    -- Nicht aktivierbar, beim nächsten Durchlauf überspringen
                                                     set _NeedsRetry to true
                                                     set _SkipCount to _SkipCount + 1
                                                     set _RowDone to true
                                                     exit repeat
                                                 end if
-                                                set _Enabled to _Enabled + 1
                                             end if
-                                            set _RowDone to true
-                                            exit repeat
+                                            set _Enabled to _Enabled + 1
                                         end if
+                                        set _RowDone to true
+                                        exit repeat
                                     end if
-                                end repeat
-                            end if
 
-                            if _RowDone then exit repeat
-                        end repeat
+                                else if class of _C1 is UI element then
+                                    -- Tiefe 2 + 3
+                                    repeat with _C2 in every UI element of _C1
+                                        if _RowDone then exit repeat
 
-                        if _NeedsRetry then exit repeat
-                    end if
-                end repeat
-            end try
+                                        -- Tiefe 2: Checkbox in C1 (Netzwerk, Mikrofon, etc.)
+                                        if class of _C2 is checkbox then
+                                            if _FoundIdx < _SkipCount then
+                                                set _FoundIdx to _FoundIdx + 1
+                                            else
+                                                if value of _C2 is 0 then
+                                                    click _C2
+                                                    delay _DelayClick
+                                                    if value of _C2 is 0 then
+                                                        my handleAuthDialog(_U, _P)
+                                                        delay _DelayAuth
+                                                        if value of _C2 is 0 then
+                                                            set _NeedsRetry to true
+                                                            set _SkipCount to _SkipCount + 1
+                                                            set _RowDone to true
+                                                            exit repeat
+                                                        end if
+                                                    end if
+                                                    set _Enabled to _Enabled + 1
+                                                end if
+                                                set _RowDone to true
+                                                exit repeat
+                                            end if
+
+                                        else if class of _C2 is UI element then
+                                            -- Tiefe 3: Checkbox in C2 (Automation-Sektion)
+                                            repeat with _C3 in every UI element of _C2
+                                                if _RowDone then exit repeat
+                                                if class of _C3 is checkbox then
+                                                    if _FoundIdx < _SkipCount then
+                                                        set _FoundIdx to _FoundIdx + 1
+                                                    else
+                                                        if value of _C3 is 0 then
+                                                            click _C3
+                                                            delay _DelayClick
+                                                            if value of _C3 is 0 then
+                                                                my handleAuthDialog(_U, _P)
+                                                                delay _DelayAuth
+                                                                if value of _C3 is 0 then
+                                                                    set _NeedsRetry to true
+                                                                    set _SkipCount to _SkipCount + 1
+                                                                    set _RowDone to true
+                                                                    exit repeat
+                                                                end if
+                                                            end if
+                                                            set _Enabled to _Enabled + 1
+                                                        end if
+                                                        set _RowDone to true
+                                                        exit repeat
+                                                    end if
+                                                end if
+                                            end repeat -- C3
+                                        end if
+                                        if _RowDone then exit repeat
+                                    end repeat -- C2
+                                end if
+                                if _RowDone then exit repeat
+                            end repeat -- C1
+                            if _NeedsRetry then exit repeat
+                        end if
+                    end repeat -- Row
+                end try
+            end tell
         end tell
     end repeat
 
     return _Enabled
-end enableCheckboxesInOutline
-
-
--- ╔══════════════════════════════════════════════════════════╗
--- ║  HANDLER: Navigator-Button einer Sektion klicken        ║
--- ║  Gibt true zurück wenn gefunden + geklickt              ║
--- ╚══════════════════════════════════════════════════════════╝
-
-on clickNavSection(_SectionNames)
-    tell application "System Events"
-        tell process "System Settings"
-            try
-                set _NavGroup to group 4 of scroll area 1 of group 1 of group 3 of splitter group 1 of group 1 of window 1
-
-                -- Strategie 1: Buttons direkt in group 4 (neuere macOS-Versionen)
-                repeat with _E in every UI element of _NavGroup
-                    if class of _E is button then
-                        try
-                            set _BtnID to value of attribute "AXIdentifier" of _E
-                            repeat with _Name in _SectionNames
-                                if _BtnID = (_Name & "_Navigator") then
-                                    click _E
-                                    return true
-                                end if
-                            end repeat
-                        end try
-                    end if
-                end repeat
-
-                -- Strategie 2: Buttons in Scroll Areas innerhalb group 4
-                repeat with _SA in every scroll area of _NavGroup
-                    repeat with _E in every UI element of _SA
-                        if class of _E is button then
-                            try
-                                set _BtnID to value of attribute "AXIdentifier" of _E
-                                repeat with _Name in _SectionNames
-                                    if _BtnID = (_Name & "_Navigator") then
-                                        click _E
-                                        return true
-                                    end if
-                                end repeat
-                            end try
-                        else if class of _E is group then
-                            repeat with _B in every UI element of _E
-                                if class of _B is button then
-                                    try
-                                        set _BtnID to value of attribute "AXIdentifier" of _B
-                                        repeat with _Name in _SectionNames
-                                            if _BtnID = (_Name & "_Navigator") then
-                                                click _B
-                                                return true
-                                            end if
-                                        end repeat
-                                    end try
-                                end if
-                            end repeat
-                        end if
-                    end repeat
-                end repeat
-
-                -- Strategie 3: Buttons in Sub-Groups (ältere macOS-Versionen)
-                repeat with _G in every group of _NavGroup
-                    repeat with _E in every UI element of _G
-                        if class of _E is button then
-                            try
-                                set _BtnID to value of attribute "AXIdentifier" of _E
-                                repeat with _Name in _SectionNames
-                                    if _BtnID = (_Name & "_Navigator") then
-                                        click _E
-                                        return true
-                                    end if
-                                end repeat
-                            end try
-                        end if
-                    end repeat
-                end repeat
-
-            end try
-        end tell
-    end tell
-    return false
-end clickNavSection
-
-
--- ╔══════════════════════════════════════════════════════════╗
--- ║  HANDLER: Alle Checkboxen in der aktuell gezeigten      ║
--- ║  Sektion aktivieren - versucht 4 verschiedene UI-Pfade  ║
--- ╚══════════════════════════════════════════════════════════╝
-
-on enableAllInCurrentSection(_U, _P)
-    set _Total to 0
-
-    tell application "System Events"
-        tell process "System Settings"
-
-            -- Pfad A: Outline in doppelt verschachteltem ScrollArea
-            -- (typisch für Kontakte, Kalender, Netzwerk, etc.)
-            try
-                set _Outline to outline 1 of scroll area 1 of group 1 of scroll area 1 of group 1 of group 3 of splitter group 1 of group 1 of window 1
-                set _Total to _Total + (my enableCheckboxesInOutline(_Outline, _U, _P))
-            end try
-
-            -- Pfad B: Outline direkt im ersten ScrollArea
-            -- (alternatives Layout bei manchen macOS-Versionen)
-            if _Total is 0 then
-                try
-                    set _Outline to outline 1 of scroll area 1 of group 1 of group 3 of splitter group 1 of group 1 of window 1
-                    set _Total to _Total + (my enableCheckboxesInOutline(_Outline, _U, _P))
-                end try
-            end if
-
-            -- Pfad C: Table statt Outline
-            -- (typisch für Vollzugriff, Bildschirmaufnahme, Barrierefreiheit, etc.)
-            if _Total is 0 then
-                try
-                    set _Table to table 1 of scroll area 1 of group 1 of scroll area 1 of group 1 of group 3 of splitter group 1 of group 1 of window 1
-                    repeat with _Row in every row of _Table
-                        repeat with _C in every UI element of _Row
-                            if class of _C is checkbox then
-                                if value of _C is 0 then
-                                    click _C
-                                    delay _DelayAfterClick
-                                    my handleAuthDialog(_U, _P)
-                                    delay 0.4
-                                    if value of _C is 1 then
-                                        set _Total to _Total + 1
-                                    end if
-                                end if
-                            end if
-                        end repeat
-                    end repeat
-                end try
-            end if
-
-            -- Pfad D: Direkte Checkboxen im ScrollArea (flache Struktur)
-            if _Total is 0 then
-                try
-                    set _SA to scroll area 1 of group 1 of scroll area 1 of group 1 of group 3 of splitter group 1 of group 1 of window 1
-                    repeat with _CB in every checkbox of _SA
-                        if value of _CB is 0 then
-                            click _CB
-                            delay _DelayAfterClick
-                            my handleAuthDialog(_U, _P)
-                            delay 0.4
-                            if value of _CB is 1 then
-                                set _Total to _Total + 1
-                            end if
-                        end if
-                    end repeat
-                end try
-            end if
-
-        end tell
-    end tell
-
-    return _Total
-end enableAllInCurrentSection
+end enableCurrentSection
 
 
 -- ╔══════════════════════════════════════════════════════════╗
 -- ║  HAUPTPROGRAMM                                          ║
+-- ║  Kein Back-Navigate zwischen Sektionen:                 ║
+-- ║  group 4 (Sidebar) bleibt von jeder Untersektion        ║
+-- ║  aus zugänglich - spart ~30 Sekunden                    ║
 -- ╚══════════════════════════════════════════════════════════╝
 
--- System Settings öffnen und zu Datenschutz & Sicherheit navigieren
 tell application "System Settings"
     activate
     delay 1.5
     set the current pane to pane id "com.apple.settings.PrivacySecurity.extension"
-    delay _DelayAfterNav
+    delay 1.0
 end tell
 
 set _TotalEnabled to 0
 set _SectionsProcessed to 0
 set _SectionsSkipped to 0
 
--- Alle Sektionen der Reihe nach durchlaufen
-repeat with _SectionPair in _Sections
-
-    -- Sidebar-Button klicken (versucht DE und EN Name)
-    set _Found to clickNavSection(_SectionPair)
-
+repeat with _SectionName in _TargetSections
+    set _Found to clickNavSection(_SectionName)
     if _Found then
         set _SectionsProcessed to _SectionsProcessed + 1
-        delay _DelayAfterNav
-
-        -- Schloss-Symbol entsperren falls vorhanden
-        tryUnlock(_AdminUser, _AdminPass)
-        delay _DelayMed
-
-        -- Alle Checkboxen in dieser Sektion aktivieren
-        set _N to enableAllInCurrentSection(_AdminUser, _AdminPass)
+        delay _DelayNav
+        set _N to enableCurrentSection(_AdminUser, _AdminPass)
         set _TotalEnabled to _TotalEnabled + _N
-
-        -- Zurück zur Hauptübersicht für die nächste Sektion
-        tell application "System Settings"
-            set the current pane to pane id "com.apple.settings.PrivacySecurity.extension"
-        end tell
-        delay _DelayAfterNav
-
     else
         set _SectionsSkipped to _SectionsSkipped + 1
     end if
-
 end repeat
 
 display notification ¬
-    ((_SectionsProcessed as string) & " Sektionen verarbeitet, " & (_SectionsSkipped as string) & " nicht gefunden, " & (_TotalEnabled as string) & " Rechte aktiviert.") ¬
+    ((_SectionsProcessed as string) & " Sektionen, " & (_TotalEnabled as string) & " Rechte aktiviert, " & (_SectionsSkipped as string) & " nicht gefunden.") ¬
     with title "Privacy Setup abgeschlossen"
