@@ -142,8 +142,59 @@ on discoverUI(_LogPath)
         end tell
     end tell
 
-    -- Schritt 2: Alle Rows in allen Outlines durchsuchen
-    set _Log to _Log & linefeed & "=== ROWS IN OUTLINES ===" & linefeed
+    -- Schritt 2: Content-Pane tief durchsuchen (group 2 + 3, inkl. Subgroups)
+    set _Log to _Log & linefeed & "=== CONTENT PANE (G2/G3, tief) ===" & linefeed
+    tell application "System Events"
+        tell process "System Settings"
+            try
+                set _Splitter to splitter group 1 of group 1 of window 1
+                -- Alle Subgroups in G2 und G3 auf Scroll Areas + Tables scannen
+                repeat with _GIdx from 2 to 3
+                    set _G to group _GIdx of _Splitter
+                    set _Log to _Log & linefeed & "== Splitter Group " & _GIdx & " ==" & linefeed
+                    -- Direkte Scroll Areas
+                    repeat with _SA in every scroll area of _G
+                        set _Log to _Log & "  DirectScrollArea → Elemente: " & (count of every UI element of _SA) & linefeed
+                        repeat with _TBL in every table of _SA
+                            set _Log to _Log & "  Table: " & (count of every row of _TBL) & " rows" & linefeed
+                        end repeat
+                        repeat with _OL in every outline of _SA
+                            set _Log to _Log & "  Outline: " & (count of every UI element of _OL) & " Elemente" & linefeed
+                        end repeat
+                    end repeat
+                    -- Subgroups (1 Ebene tief)
+                    repeat with _SG in every group of _G
+                        repeat with _SA in every scroll area of _SG
+                            set _Log to _Log & "  SubgroupScrollArea → Elemente: " & (count of every UI element of _SA) & linefeed
+                            repeat with _TBL in every table of _SA
+                                set _Log to _Log & "  Table: " & (count of every row of _TBL) & " rows" & linefeed
+                            end repeat
+                            repeat with _OL in every outline of _SA
+                                set _Log to _Log & "  Outline: " & (count of every UI element of _OL) & " Elemente" & linefeed
+                            end repeat
+                        end repeat
+                        -- Subgroups 2 Ebenen tief
+                        repeat with _SG2 in every group of _SG
+                            repeat with _SA in every scroll area of _SG2
+                                set _Log to _Log & "  SubSub ScrollArea → Elemente: " & (count of every UI element of _SA) & linefeed
+                                repeat with _TBL in every table of _SA
+                                    set _Log to _Log & "  Table: " & (count of every row of _TBL) & " rows" & linefeed
+                                end repeat
+                                repeat with _OL in every outline of _SA
+                                    set _Log to _Log & "  Outline: " & (count of every UI element of _OL) & " Elemente" & linefeed
+                                end repeat
+                            end repeat
+                        end repeat
+                    end repeat
+                end repeat
+            on error _Err3
+                set _Log to _Log & "ContentScan-Fehler: " & _Err3 & linefeed
+            end try
+        end tell
+    end tell
+
+    -- Schritt 3: Alle Rows in allen Outlines durchsuchen (Sidebar, zur Referenz)
+    set _Log to _Log & linefeed & "=== ROWS IN OUTLINES (Sidebar) ===" & linefeed
     tell application "System Events"
         tell process "System Settings"
             try
