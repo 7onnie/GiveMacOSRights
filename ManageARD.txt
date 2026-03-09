@@ -1,5 +1,5 @@
 -- ===========================================================
--- ManageARD.applescript v1
+-- ManageARD.applescript v2
 -- Entfernte Verwaltung, Anmeldung & Scriptsteuerung konfigurieren
 -- NUR FÜR TESTSYSTEME
 -- ===========================================================
@@ -11,17 +11,18 @@
 property _AdminUser : "praxis"
 property _AdminPass : "praxis"
 
--- "Activate"   → Ersteinrichtung (alles einschalten)
--- "Reactivate" → Erneut aktivieren (z.B. nach macOS-Update)
+-- "Activate"   → Ersteinrichtung (alles einschalten inkl. Sub-Optionen)
+-- "Reactivate" → Nur Haupt-Toggles einschalten (Sub-Optionen bleiben)
 property _Mode : "Activate"
 
 property _DelayClick : 0.3      -- Warten nach Klick
 property _DelayAuth : 0.5       -- Warten nach Auth-Dialog
 property _DelayNav : 1.5        -- Warten nach Pane-Wechsel
+property _DelayPanel : 1.0      -- Warten nach Info-Panel öffnen
 
--- Discovery-Modus: true → UI-Struktur in Log schreiben, nichts klicken
-property _DiscoverMode : true
-property _LogFile : "/tmp/ManageARD_discovery.log"
+-- Discovery für Info-Panels: true → Info-Panel öffnen & scannen, nichts konfigurieren
+property _DiscoverInfoPanel : true
+property _LogFile : "/tmp/ManageARD_infopanel.log"
 
 
 -- ╔══════════════════════════════════════════════════════════╗
@@ -118,61 +119,102 @@ end handleAuthDialog
 
 
 -- ╔══════════════════════════════════════════════════════════╗
--- ║  HANDLER: Discovery – UI-Struktur in Log schreiben      ║
+-- ║  HANDLER: Checkbox per AXIdentifier setzen              ║
 -- ╚══════════════════════════════════════════════════════════╝
 
-on discoverUI(_LogPath)
-    set _Log to "=== ManageARD Discovery Log ===" & linefeed
-    set _Log to _Log & "Datum: " & (current date as string) & linefeed & linefeed
-
-    -- Schritt 1: Top-Level-Struktur des Fensters
+-- Setzt Checkbox mit gegebener AXId auf _TargetVal (0=aus, 1=ein).
+-- Sucht in der SubSA (Sharing-Content) oder in einem übergebenen Container.
+on setCheckboxById(_AXId, _TargetVal, _Container)
     tell application "System Events"
         tell process "System Settings"
             try
-                set _Splitter to splitter group 1 of group 1 of window 1
-                set _GCount to count of every group of _Splitter
-                set _Log to _Log & "Splitter-Groups: " & _GCount & linefeed
-                repeat with _GIdx from 1 to _GCount
-                    set _G to group _GIdx of _Splitter
-                    set _Log to _Log & "  Group " & _GIdx & ": " & (count of every UI element of _G) & " Kinder" & linefeed
+                repeat with _El in every UI element of _Container
+                    set _ElClass to class of _El
+                    if _ElClass is group or _ElClass is UI element or _ElClass is scroll area then
+                        repeat with _K in every UI element of _El
+                            if class of _K is checkbox then
+                                try
+                                    if (value of attribute "AXIdentifier" of _K) = _AXId then
+                                        if value of _K is not _TargetVal then
+                                            click _K
+                                            delay _DelayClick
+                                            my handleAuthDialog(_AdminUser, _AdminPass)
+                                            delay _DelayAuth
+                                        end if
+                                        return true
+                                    end if
+                                end try
+                            end if
+                        end repeat
+                    end if
                 end repeat
-            on error _Err
-                set _Log to _Log & "Splitter-Fehler: " & _Err & linefeed
             end try
         end tell
     end tell
+    return false
+end setCheckboxById
 
-    -- Schritt 2: Sharing-Content gezielt scannen (G3 → Subgroup → ScrollArea → 8 Elemente)
-    set _Log to _Log & linefeed & "=== SHARING CONTENT (G3 → SubSA → UI Elements) ===" & linefeed
+
+-- ╔══════════════════════════════════════════════════════════╗
+-- ║  HANDLER: Button per AXIdentifier klicken               ║
+-- ╚══════════════════════════════════════════════════════════╝
+
+on clickButtonById(_AXId, _Container)
+    tell application "System Events"
+        tell process "System Settings"
+            try
+                repeat with _El in every UI element of _Container
+                    set _ElClass to class of _El
+                    if _ElClass is group or _ElClass is UI element or _ElClass is scroll area then
+                        repeat with _K in every UI element of _El
+                            if class of _K is button then
+                                try
+                                    if (value of attribute "AXIdentifier" of _K) = _AXId then
+                                        click _K
+                                        return true
+                                    end if
+                                end try
+                            end if
+                        end repeat
+                    end if
+                end repeat
+            end try
+        end tell
+    end tell
+    return false
+end clickButtonById
+
+
+-- ╔══════════════════════════════════════════════════════════╗
+-- ║  HANDLER: Info-Panel Discovery                          ║
+-- ║  Klickt Info-Button und scannt das resultierende UI     ║
+-- ╚══════════════════════════════════════════════════════════╝
+
+on discoverInfoPanel(_InfoBtnAXId, _SubSA, _LogPath)
+    set _Log to "=== Info-Panel Discovery: " & _InfoBtnAXId & " ===" & linefeed
+    set _Log to _Log & "Datum: " & (current date as string) & linefeed & linefeed
+
+    -- Info-Button klicken
+    set _Found to clickButtonById(_InfoBtnAXId, _SubSA)
+    set _Log to _Log & "Info-Button geklickt: " & _Found & linefeed
+    delay _DelayPanel
+
+    -- Scan: was ist jetzt in Group 3?
     tell application "System Events"
         tell process "System Settings"
             try
                 set _Splitter to splitter group 1 of group 1 of window 1
-                set _SubSA to scroll area 1 of group 1 of group 3 of _Splitter
-                set _ECount to count of every UI element of _SubSA
-                set _Log to _Log & "UI-Elemente in SubSA: " & _ECount & linefeed
-                set _EIdx to 0
-                repeat with _El in every UI element of _SubSA
-                    set _EIdx to _EIdx + 1
-                    set _Log to _Log & linefeed & "=== Element " & _EIdx & " ===" & linefeed
-                    set _Log to _Log & "  class=" & (class of _El as string) & linefeed
-                    try
-                        set _Log to _Log & "  title=" & (title of _El) & linefeed
-                    end try
-                    try
-                        set _Log to _Log & "  value=" & (value of _El as string) & linefeed
-                    end try
-                    try
-                        set _Log to _Log & "  desc=" & (value of attribute "AXDescription" of _El) & linefeed
-                    end try
-                    try
-                        set _Log to _Log & "  AXId=" & (value of attribute "AXIdentifier" of _El) & linefeed
-                    end try
-                    -- Kinder
-                    set _KIdx to 0
-                    repeat with _K in every UI element of _El
-                        set _KIdx to _KIdx + 1
-                        set _Log to _Log & "  K[" & _KIdx & "]: class=" & (class of _K as string)
+                set _G3 to group 3 of _Splitter
+                set _Log to _Log & linefeed & "=== Group 3 nach Klick ===" & linefeed
+                set _Log to _Log & "UI-Elemente: " & (count of every UI element of _G3) & linefeed
+
+                -- Sheets?
+                set _SheetCount to count of sheets of window 1
+                set _Log to _Log & "Sheets: " & _SheetCount & linefeed
+                if _SheetCount > 0 then
+                    set _Log to _Log & linefeed & "=== Sheet 1 ===" & linefeed
+                    repeat with _K in every UI element of sheet 1 of window 1
+                        set _Log to _Log & "  K: class=" & (class of _K as string)
                         try
                             set _Log to _Log & " title=" & (title of _K)
                         end try
@@ -186,11 +228,9 @@ on discoverUI(_LogPath)
                             set _Log to _Log & " AXId=" & (value of attribute "AXIdentifier" of _K)
                         end try
                         set _Log to _Log & linefeed
-                        -- Enkel
-                        set _EKIdx to 0
+                        -- Kinder des Sheet-Elements
                         repeat with _EK in every UI element of _K
-                            set _EKIdx to _EKIdx + 1
-                            set _Log to _Log & "    EK[" & _EKIdx & "]: class=" & (class of _EK as string)
+                            set _Log to _Log & "    EK: class=" & (class of _EK as string)
                             try
                                 set _Log to _Log & " title=" & (title of _EK)
                             end try
@@ -206,164 +246,57 @@ on discoverUI(_LogPath)
                             set _Log to _Log & linefeed
                         end repeat
                     end repeat
-                end repeat
-            on error _ErrC
-                set _Log to _Log & "SharingContent-Fehler: " & _ErrC & linefeed
-            end try
-        end tell
-    end tell
+                end if
 
-    -- Schritt 2b: Content-Pane grob durchsuchen (group 2 + 3, inkl. Subgroups)
-    set _Log to _Log & linefeed & "=== CONTENT PANE (G2/G3, tief) ===" & linefeed
-    tell application "System Events"
-        tell process "System Settings"
-            try
-                set _Splitter to splitter group 1 of group 1 of window 1
-                -- Alle Subgroups in G2 und G3 auf Scroll Areas + Tables scannen
-                repeat with _GIdx from 2 to 3
-                    set _G to group _GIdx of _Splitter
-                    set _Log to _Log & linefeed & "== Splitter Group " & _GIdx & " ==" & linefeed
-                    -- Direkte Scroll Areas
-                    repeat with _SA in every scroll area of _G
-                        set _Log to _Log & "  DirectScrollArea → Elemente: " & (count of every UI element of _SA) & linefeed
-                        repeat with _TBL in every table of _SA
-                            set _Log to _Log & "  Table: " & (count of every row of _TBL) & " rows" & linefeed
-                        end repeat
-                        repeat with _OL in every outline of _SA
-                            set _Log to _Log & "  Outline: " & (count of every UI element of _OL) & " Elemente" & linefeed
-                        end repeat
-                    end repeat
-                    -- Subgroups (1 Ebene tief)
-                    repeat with _SG in every group of _G
-                        repeat with _SA in every scroll area of _SG
-                            set _Log to _Log & "  SubgroupScrollArea → Elemente: " & (count of every UI element of _SA) & linefeed
-                            repeat with _TBL in every table of _SA
-                                set _Log to _Log & "  Table: " & (count of every row of _TBL) & " rows" & linefeed
-                            end repeat
-                            repeat with _OL in every outline of _SA
-                                set _Log to _Log & "  Outline: " & (count of every UI element of _OL) & " Elemente" & linefeed
-                            end repeat
-                        end repeat
-                        -- Subgroups 2 Ebenen tief
-                        repeat with _SG2 in every group of _SG
-                            repeat with _SA in every scroll area of _SG2
-                                set _Log to _Log & "  SubSub ScrollArea → Elemente: " & (count of every UI element of _SA) & linefeed
-                                repeat with _TBL in every table of _SA
-                                    set _Log to _Log & "  Table: " & (count of every row of _TBL) & " rows" & linefeed
-                                end repeat
-                                repeat with _OL in every outline of _SA
-                                    set _Log to _Log & "  Outline: " & (count of every UI element of _OL) & " Elemente" & linefeed
-                                end repeat
-                            end repeat
-                        end repeat
-                    end repeat
-                end repeat
-            on error _Err3
-                set _Log to _Log & "ContentScan-Fehler: " & _Err3 & linefeed
-            end try
-        end tell
-    end tell
-
-    -- Schritt 3: Alle Rows in allen Outlines durchsuchen (Sidebar, zur Referenz)
-    set _Log to _Log & linefeed & "=== ROWS IN OUTLINES (Sidebar) ===" & linefeed
-    tell application "System Events"
-        tell process "System Settings"
-            try
-                set _Splitter to splitter group 1 of group 1 of window 1
-                set _GCount to count of every group of _Splitter
-                repeat with _GIdx from 1 to _GCount
-                    try
-                        set _G to group _GIdx of _Splitter
-                        set _AllSA to every scroll area of _G
-                        repeat with _SA in _AllSA
+                -- Subgroups in G3 (falls neues Panel erscheint)
+                repeat with _SG in every group of _G3
+                    set _Log to _Log & linefeed & "SubGroup von G3:" & linefeed
+                    repeat with _SA in every scroll area of _SG
+                        set _Log to _Log & "  ScrollArea → " & (count of every UI element of _SA) & " Elemente" & linefeed
+                        set _EIdx to 0
+                        repeat with _El in every UI element of _SA
+                            set _EIdx to _EIdx + 1
+                            set _Log to _Log & "  El[" & _EIdx & "]: class=" & (class of _El as string)
                             try
-                                set _AllOL to every outline of _SA
-                                repeat with _OL in _AllOL
-                                    set _RowIdx to 0
-                                    repeat with _Row in every UI element of _OL
-                                        if class of _Row is row then
-                                            set _RowIdx to _RowIdx + 1
-                                            set _Log to _Log & linefeed & "--- G" & _GIdx & " Row " & _RowIdx & " ---" & linefeed
-                                            try
-                                                set _Log to _Log & "  AXIdentifier: " & (value of attribute "AXIdentifier" of _Row) & linefeed
-                                            end try
-                                            try
-                                                set _Log to _Log & "  AXLabel:      " & (value of attribute "AXLabel" of _Row) & linefeed
-                                            end try
-                                            try
-                                                set _Log to _Log & "  AXDisclosing: " & (value of attribute "AXDisclosing" of _Row) & linefeed
-                                            end try
-                                            -- Tiefe 1
-                                            set _CIdx to 0
-                                            repeat with _C1 in every UI element of _Row
-                                                set _CIdx to _CIdx + 1
-                                                set _Log to _Log & "  C1[" & _CIdx & "]: class=" & (class of _C1 as string)
-                                                try
-                                                    set _Log to _Log & " title=" & (title of _C1)
-                                                end try
-                                                try
-                                                    set _Log to _Log & " value=" & (value of _C1 as string)
-                                                end try
-                                                try
-                                                    set _Log to _Log & " desc=" & (value of attribute "AXDescription" of _C1)
-                                                end try
-                                                try
-                                                    set _Log to _Log & " AXId=" & (value of attribute "AXIdentifier" of _C1)
-                                                end try
-                                                set _Log to _Log & linefeed
-                                                -- Tiefe 2
-                                                set _C2Idx to 0
-                                                repeat with _C2 in every UI element of _C1
-                                                    set _C2Idx to _C2Idx + 1
-                                                    set _Log to _Log & "    C2[" & _C2Idx & "]: class=" & (class of _C2 as string)
-                                                    try
-                                                        set _Log to _Log & " title=" & (title of _C2)
-                                                    end try
-                                                    try
-                                                        set _Log to _Log & " value=" & (value of _C2 as string)
-                                                    end try
-                                                    try
-                                                        set _Log to _Log & " desc=" & (value of attribute "AXDescription" of _C2)
-                                                    end try
-                                                    try
-                                                        set _Log to _Log & " AXId=" & (value of attribute "AXIdentifier" of _C2)
-                                                    end try
-                                                    set _Log to _Log & linefeed
-                                                    -- Tiefe 3
-                                                    set _C3Idx to 0
-                                                    repeat with _C3 in every UI element of _C2
-                                                        set _C3Idx to _C3Idx + 1
-                                                        set _Log to _Log & "      C3[" & _C3Idx & "]: class=" & (class of _C3 as string)
-                                                        try
-                                                            set _Log to _Log & " title=" & (title of _C3)
-                                                        end try
-                                                        try
-                                                            set _Log to _Log & " value=" & (value of _C3 as string)
-                                                        end try
-                                                        try
-                                                            set _Log to _Log & " desc=" & (value of attribute "AXDescription" of _C3)
-                                                        end try
-                                                        try
-                                                            set _Log to _Log & " AXId=" & (value of attribute "AXIdentifier" of _C3)
-                                                        end try
-                                                        set _Log to _Log & linefeed
-                                                    end repeat
-                                                end repeat
-                                            end repeat
-                                        end if
-                                    end repeat
-                                end repeat
+                                set _Log to _Log & " title=" & (title of _El)
                             end try
+                            try
+                                set _Log to _Log & " value=" & (value of _El as string)
+                            end try
+                            try
+                                set _Log to _Log & " AXId=" & (value of attribute "AXIdentifier" of _El)
+                            end try
+                            set _Log to _Log & linefeed
+                            -- Kinder
+                            set _KIdx to 0
+                            repeat with _K in every UI element of _El
+                                set _KIdx to _KIdx + 1
+                                set _Log to _Log & "    K[" & _KIdx & "]: class=" & (class of _K as string)
+                                try
+                                    set _Log to _Log & " title=" & (title of _K)
+                                end try
+                                try
+                                    set _Log to _Log & " value=" & (value of _K as string)
+                                end try
+                                try
+                                    set _Log to _Log & " desc=" & (value of attribute "AXDescription" of _K)
+                                end try
+                                try
+                                    set _Log to _Log & " AXId=" & (value of attribute "AXIdentifier" of _K)
+                                end try
+                                set _Log to _Log & linefeed
+                            end repeat
                         end repeat
-                    end try
+                    end repeat
                 end repeat
-            on error _Err2
-                set _Log to _Log & "Scan-Fehler: " & _Err2 & linefeed
+
+            on error _Err
+                set _Log to _Log & "Fehler: " & _Err & linefeed
             end try
         end tell
     end tell
 
-    -- In Datei schreiben
+    -- In Datei schreiben (append)
     try
         set _FH to open for access (POSIX file _LogPath) with write permission
         set eof of _FH to 0
@@ -374,26 +307,14 @@ on discoverUI(_LogPath)
             close access (POSIX file _LogPath)
         end try
     end try
-
-    return _Log
-end discoverUI
-
-
--- ╔══════════════════════════════════════════════════════════╗
--- ║  HANDLER: Checkbox in Row per Label anklicken           ║
--- ╚══════════════════════════════════════════════════════════╝
-
-on clickCheckboxInRow(_RowLabel, _Outline)
-    -- Platzhalter – wird nach Discovery mit echten Identifiers gefüllt
-    return false
-end clickCheckboxInRow
+end discoverInfoPanel
 
 
 -- ╔══════════════════════════════════════════════════════════╗
 -- ║  HAUPTPROGRAMM                                          ║
 -- ╚══════════════════════════════════════════════════════════╝
 
--- Sharing-Pane öffnen (pane id funktioniert nicht → URL-Scheme)
+-- Sharing-Pane öffnen
 tell application "System Settings"
     activate
     delay 1.0
@@ -401,19 +322,46 @@ end tell
 do shell script "open 'x-apple.systempreferences:com.apple.preferences.sharing'"
 delay _DelayNav
 
--- Discovery-Modus
-if _DiscoverMode then
-    set _Result to discoverUI(_LogFile)
+-- Referenz auf den Sharing-Content-Bereich
+set _SubSA to missing value
+tell application "System Events"
+    tell process "System Settings"
+        try
+            set _SubSA to scroll area 1 of group 1 of group 3 of splitter group 1 of group 1 of window 1
+        end try
+    end tell
+end tell
+
+-- ── Discovery-Modus für Info-Panels ──────────────────────
+if _DiscoverInfoPanel then
+    -- Verwaltung Info-Panel scannen
+    discoverInfoPanel("Entfernte VerwaltungToggle.infoButton", _SubSA, _LogFile)
     display dialog "Discovery abgeschlossen. Log: " & _LogFile buttons {"OK"} default button 1
+    tell application "System Settings" to quit
     return
 end if
 
--- ── Aktivierungs-Logik (nach Discovery befüllen) ──────────
+-- ── Haupt-Toggles aktivieren ─────────────────────────────
 
--- TODO: Entfernte Verwaltung AN
--- TODO: Optionen konfigurieren
--- TODO: Entfernte Anmeldung AN + FDA
--- TODO: Scriptsteuerung AN
+-- 1. Entfernte Verwaltung AN
+setCheckboxById("Entfernte VerwaltungToggle", 1, _SubSA)
+
+-- 2. Entfernte Anmeldung AN
+setCheckboxById("Entfernte AnmeldungToggle", 1, _SubSA)
+
+-- 3. Skriptfernsteuerung für Apps AN
+setCheckboxById("Skriptfernsteuerung für AppsToggle", 1, _SubSA)
+
+-- ── Sub-Optionen (nur im Activate-Modus) ─────────────────
+if _Mode is "Activate" then
+
+    -- TODO: Entfernte Verwaltung Info-Panel → Sub-Optionen konfigurieren
+    -- (Nach Info-Panel Discovery befüllen)
+
+    -- TODO: Entfernte Anmeldung Info-Panel → FDA aktivieren
+    -- (Nach Info-Panel Discovery befüllen)
+
+end if
 
 display notification "ManageARD " & _Mode & " abgeschlossen." with title "ManageARD"
 
