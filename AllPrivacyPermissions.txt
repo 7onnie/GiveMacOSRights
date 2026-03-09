@@ -1,5 +1,5 @@
 -- ===========================================================
--- AllPrivacyPermissions.applescript v8
+-- AllPrivacyPermissions.applescript v9
 -- Schnell & gezielt: Alle Rechte für alle Apps aktivieren
 -- NUR FÜR TESTSYSTEME
 -- ===========================================================
@@ -230,8 +230,8 @@ on enableCurrentSection(_U, _P)
                 repeat with _Row in every UI element of _Outline
                     if class of _Row is row then
                         try
-                            if value of attribute "AXDisclosed" of _Row is false then
-                                set value of attribute "AXDisclosed" of _Row to true
+                            if value of attribute "AXDisclosing" of _Row is false then
+                                set value of attribute "AXDisclosing" of _Row to true
                                 delay 0.15
                             end if
                         end try
