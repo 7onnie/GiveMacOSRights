@@ -213,39 +213,85 @@ on discoverInfoPanel(_InfoBtnAXId, _SubSA, _LogPath)
                 set _Log to _Log & "Sheets: " & _SheetCount & linefeed
                 if _SheetCount > 0 then
                     set _Log to _Log & linefeed & "=== Sheet 1 ===" & linefeed
-                    repeat with _K in every UI element of sheet 1 of window 1
-                        set _Log to _Log & "  K: class=" & (class of _K as string)
+                    -- Buttons direkt im Sheet
+                    set _BIdx to 0
+                    repeat with _Btn in every button of sheet 1 of window 1
+                        set _BIdx to _BIdx + 1
+                        set _Log to _Log & "  Btn[" & _BIdx & "]:"
                         try
-                            set _Log to _Log & " title=" & (title of _K)
+                            set _Log to _Log & " title=" & (title of _Btn)
                         end try
                         try
-                            set _Log to _Log & " value=" & (value of _K as string)
+                            set _Log to _Log & " desc=" & (value of attribute "AXDescription" of _Btn)
                         end try
                         try
-                            set _Log to _Log & " desc=" & (value of attribute "AXDescription" of _K)
-                        end try
-                        try
-                            set _Log to _Log & " AXId=" & (value of attribute "AXIdentifier" of _K)
+                            set _Log to _Log & " AXId=" & (value of attribute "AXIdentifier" of _Btn)
                         end try
                         set _Log to _Log & linefeed
-                        -- Kinder des Sheet-Elements
-                        repeat with _EK in every UI element of _K
-                            set _Log to _Log & "    EK: class=" & (class of _EK as string)
+                    end repeat
+                    -- Scroll Area im Sheet → Inhalt
+                    try
+                        set _SheetSA to scroll area 1 of group 1 of sheet 1 of window 1
+                        set _Log to _Log & linefeed & "Sheet-ScrollArea → " & (count of every UI element of _SheetSA) & " Elemente" & linefeed
+                        set _SAIdx to 0
+                        repeat with _SAEl in every UI element of _SheetSA
+                            set _SAIdx to _SAIdx + 1
+                            set _Log to _Log & linefeed & "SA-El[" & _SAIdx & "]: class=" & (class of _SAEl as string)
                             try
-                                set _Log to _Log & " title=" & (title of _EK)
+                                set _Log to _Log & " title=" & (title of _SAEl)
                             end try
                             try
-                                set _Log to _Log & " value=" & (value of _EK as string)
+                                set _Log to _Log & " value=" & (value of _SAEl as string)
                             end try
                             try
-                                set _Log to _Log & " desc=" & (value of attribute "AXDescription" of _EK)
+                                set _Log to _Log & " desc=" & (value of attribute "AXDescription" of _SAEl)
                             end try
                             try
-                                set _Log to _Log & " AXId=" & (value of attribute "AXIdentifier" of _EK)
+                                set _Log to _Log & " AXId=" & (value of attribute "AXIdentifier" of _SAEl)
                             end try
                             set _Log to _Log & linefeed
+                            -- Kinder
+                            set _KIdx to 0
+                            repeat with _K in every UI element of _SAEl
+                                set _KIdx to _KIdx + 1
+                                set _Log to _Log & "  K[" & _KIdx & "]: class=" & (class of _K as string)
+                                try
+                                    set _Log to _Log & " title=" & (title of _K)
+                                end try
+                                try
+                                    set _Log to _Log & " value=" & (value of _K as string)
+                                end try
+                                try
+                                    set _Log to _Log & " desc=" & (value of attribute "AXDescription" of _K)
+                                end try
+                                try
+                                    set _Log to _Log & " AXId=" & (value of attribute "AXIdentifier" of _K)
+                                end try
+                                set _Log to _Log & linefeed
+                                -- Enkel
+                                set _EKIdx to 0
+                                repeat with _EK in every UI element of _K
+                                    set _EKIdx to _EKIdx + 1
+                                    set _Log to _Log & "    EK[" & _EKIdx & "]: class=" & (class of _EK as string)
+                                    try
+                                        set _Log to _Log & " title=" & (title of _EK)
+                                    end try
+                                    try
+                                        set _Log to _Log & " value=" & (value of _EK as string)
+                                    end try
+                                    try
+                                        set _Log to _Log & " desc=" & (value of attribute "AXDescription" of _EK)
+                                    end try
+                                    try
+                                        set _Log to _Log & " AXId=" & (value of attribute "AXIdentifier" of _EK)
+                                    end try
+                                    set _Log to _Log & linefeed
+                                end repeat
+                            end repeat
                         end repeat
-                    end repeat
+                    on error _ErrSA
+                        set _Log to _Log & "Sheet-SA Fehler: " & _ErrSA & linefeed
+                    end try
                 end if
 
                 -- Subgroups in G3 (falls neues Panel erscheint)
