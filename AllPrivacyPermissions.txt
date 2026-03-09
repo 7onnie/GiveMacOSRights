@@ -1,5 +1,5 @@
 -- ===========================================================
--- AllPrivacyPermissions.applescript v11
+-- AllPrivacyPermissions.applescript v12
 -- Schnell & gezielt: Alle Rechte für alle Apps aktivieren
 -- NUR FÜR TESTSYSTEME
 -- ===========================================================
@@ -223,25 +223,30 @@ on enableCurrentSection(_U, _P)
     set _SkipCount to 0
 
     -- Pre-Pass: eingeklappte Disclosure-Rows aufklappen (z.B. Automation: tomedo → Finder)
-    -- Schleife läuft nur so oft wie nötig: stoppt sobald ein Durchlauf nichts mehr aufklappt.
+    -- Stoppt wenn sich die Zahl der Outline-Elemente nicht mehr erhöht (Leaf-Rows ignoriert).
     tell application "System Events"
         tell process "System Settings"
-            set _DidExpand to true
-            repeat while _DidExpand
-                set _DidExpand to false
+            set _PrevCount to -1
+            set _KeepExpanding to true
+            repeat while _KeepExpanding
+                set _KeepExpanding to false
                 try
                     set _Outline to outline 1 of scroll area 1 of group 1 of scroll area 1 of group 1 of group 3 of splitter group 1 of group 1 of window 1
-                    repeat with _Row in every UI element of _Outline
-                        if class of _Row is row then
-                            try
-                                if value of attribute "AXDisclosing" of _Row is false then
-                                    set value of attribute "AXDisclosing" of _Row to true
-                                    set _DidExpand to true
-                                    delay 0.1
-                                end if
-                            end try
-                        end if
-                    end repeat
+                    set _CurrCount to count of every UI element of _Outline
+                    if _CurrCount > _PrevCount then
+                        set _PrevCount to _CurrCount
+                        repeat with _Row in every UI element of _Outline
+                            if class of _Row is row then
+                                try
+                                    if value of attribute "AXDisclosing" of _Row is false then
+                                        set value of attribute "AXDisclosing" of _Row to true
+                                        set _KeepExpanding to true
+                                        delay 0.1
+                                    end if
+                                end try
+                            end if
+                        end repeat
+                    end if
                 end try
             end repeat
         end tell
