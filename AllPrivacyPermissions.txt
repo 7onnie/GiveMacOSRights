@@ -1,5 +1,5 @@
 -- ===========================================================
--- AllPrivacyPermissions.applescript v3
+-- AllPrivacyPermissions.applescript v4
 -- Schnell & gezielt: Alle Rechte für alle Apps aktivieren
 -- NUR FÜR TESTSYSTEME
 -- ===========================================================
@@ -15,8 +15,10 @@ property _DelayNav : 1.0       -- Warten nach Sektions-Klick (Ladezeit)
 property _DelayClick : 0.5     -- Warten nach Checkbox-Klick
 property _DelayAuth : 0.3      -- Warten nach Auth-Dialog
 
--- Ziel-Sektionen: exakte deutsche AXIdentifier ohne "_Navigator"-Suffix
--- Aus dem Accessibility Inspector ermittelt (14 Buttons auf diesem System)
+-- Ziel-Sektionen: exakte deutsche AXIdentifier ohne "_Navigator"-Suffix.
+-- Falls eine Sektion nicht in den sichtbaren 14 Sidebar-Buttons ist
+-- (z.B. Vollständiger Festplattenzugriff), wird die Sidebar automatisch
+-- nach unten gescrollt und nochmals gesucht.
 property _TargetSections : {¬
     "App-Verwaltung", ¬
     "Aufnahme von Bildschirm & Systemaudio", ¬
@@ -28,10 +30,11 @@ property _TargetSections : {¬
     "Lokales Netzwerk", ¬
     "Mikrofon", ¬
     "Remote Desktop", ¬
-    "Spracherkennung" ¬
+    "Spracherkennung", ¬
+    "Vollständiger Festplattenzugriff" ¬
 }
 
--- Alle bekannten Sektionen (vollständige Liste für "Alles aktivieren"):
+-- Alle bekannten Sektionen dieses Systems (14 Sidebar-Buttons):
 -- "App-Verwaltung", "Aufnahme von Bildschirm & Systemaudio", "Automation",
 -- "Bedienungshilfen", "Bewegung & Fitness", "Bluetooth", "Eingabeüberwachung",
 -- "Entwickler-Werkzeuge", "Fokus", "Kamera", "Lokales Netzwerk",
@@ -39,13 +42,14 @@ property _TargetSections : {¬
 
 
 -- ╔══════════════════════════════════════════════════════════╗
--- ║  HANDLER: Auth-Dialog ausfüllen                         ║
--- ║  Nur aufrufen wenn Checkbox-Klick fehlschlug            ║
+-- ║  HANDLER: Auth- UND Bestätigungs-Dialoge behandeln      ║
+-- ║  Behandelt: Passwort-Dialoge + OK/Erlauben-Sheets       ║
 -- ╚══════════════════════════════════════════════════════════╝
 
 on handleAuthDialog(_U, _P)
     delay 0.3
     tell application "System Events"
+
         -- Fall 1: SecurityAgent (Schloss-Dialog, separater Prozess)
         if exists process "SecurityAgent" then
             tell process "SecurityAgent"
@@ -53,6 +57,7 @@ on handleAuthDialog(_U, _P)
                     repeat with _W in every window
                         set _F to every text field of _W
                         if (count of _F) > 0 then
+                            -- Passwort-Dialog
                             if (count of _F) >= 2 then
                                 set value of text field 1 to _U
                                 delay 0.15
@@ -63,44 +68,109 @@ on handleAuthDialog(_U, _P)
                             delay 0.2
                             key code 36 -- Return
                             return true
+                        else
+                            -- Bestätigungs-Dialog ohne Passwortfelder
+                            repeat with _Btn in every button of _W
+                                set _N to name of _Btn
+                                if _N is not missing value then
+                                    if _N is not in {"Abbrechen", "Cancel", "Nicht erlauben", "Don't Allow", "Deny", "Ablehnen"} then
+                                        click _Btn
+                                        delay 0.3
+                                        return true
+                                    end if
+                                end if
+                            end repeat
                         end if
                     end repeat
                 end try
             end tell
         end if
-        -- Fall 2: Sheet in System Settings
+
+        -- Fall 2: Sheet in System Settings (Passwort ODER Bestätigung)
         if exists process "System Settings" then
             tell process "System Settings"
                 try
-                    if (count of sheets of window 1) > 0 then
-                        tell sheet 1 of window 1
-                            set _F to every text field
-                            if (count of _F) > 0 then
-                                if (count of _F) >= 2 then
-                                    set value of text field 1 to _U
-                                    delay 0.15
-                                    set value of text field 2 to _P
+                    -- Bis zu 2 gestapelte Sheets behandeln
+                    repeat 2 times
+                        if (count of sheets of window 1) > 0 then
+                            tell sheet 1 of window 1
+                                set _F to every text field
+                                if (count of _F) > 0 then
+                                    -- Passwort-Sheet
+                                    if (count of _F) >= 2 then
+                                        set value of text field 1 to _U
+                                        delay 0.15
+                                        set value of text field 2 to _P
+                                    else
+                                        set value of text field 1 to _P
+                                    end if
+                                    delay 0.2
+                                    key code 36 -- Return
+                                    delay 0.5
                                 else
-                                    set value of text field 1 to _P
+                                    -- Bestätigungs-Sheet: erste positive Schaltfläche klicken
+                                    set _Clicked to false
+                                    repeat with _Btn in every button
+                                        set _N to name of _Btn
+                                        if _N is not missing value then
+                                            if _N is not in {"Abbrechen", "Cancel", "Nicht erlauben", "Don't Allow", "Deny", "Ablehnen"} then
+                                                click _Btn
+                                                set _Clicked to true
+                                                delay 0.3
+                                                exit repeat
+                                            end if
+                                        end if
+                                    end repeat
+                                    if not _Clicked then
+                                        key code 36 -- Return als Fallback
+                                        delay 0.3
+                                    end if
                                 end if
-                                delay 0.2
-                                key code 36 -- Return
-                                return true
-                            end if
-                        end tell
-                    end if
+                            end tell
+                        else
+                            exit repeat
+                        end if
+                    end repeat
                 end try
             end tell
         end if
+
     end tell
     return false
 end handleAuthDialog
 
 
 -- ╔══════════════════════════════════════════════════════════╗
+-- ║  HANDLER: Zurück zur Hauptansicht navigieren            ║
+-- ║  Dismissed erst alle offenen Dialoge, dann navigate     ║
+-- ║  Retry falls noch ein Modal offen ist                   ║
+-- ╚══════════════════════════════════════════════════════════╝
+
+on navigateBack(_U, _P)
+    -- Offene Dialoge/Bestätigungen vor dem Navigieren schließen
+    my handleAuthDialog(_U, _P)
+    delay 0.3
+    tell application "System Settings"
+        try
+            set the current pane to pane id "com.apple.settings.PrivacySecurity.extension"
+        on error
+            -- Noch ein Modal offen: nochmals warten und dismissen
+            delay 1.0
+            my handleAuthDialog(_U, _P)
+            delay 0.5
+            try
+                set the current pane to pane id "com.apple.settings.PrivacySecurity.extension"
+            end try
+        end try
+    end tell
+    delay 0.8
+end navigateBack
+
+
+-- ╔══════════════════════════════════════════════════════════╗
 -- ║  HANDLER: Navigator-Button klicken                      ║
--- ║  Buttons liegen direkt als UI elements in group 4       ║
--- ║  (kein Sub-Group nötig - bestätigt durch Accessibility) ║
+-- ║  Pass 1: sichtbare Buttons in group 4                   ║
+-- ║  Pass 2: Sidebar nach unten scrollen, nochmals suchen   ║
 -- ╚══════════════════════════════════════════════════════════╝
 
 on clickNavSection(_SectionName)
@@ -108,6 +178,8 @@ on clickNavSection(_SectionName)
         tell process "System Settings"
             try
                 set _NavGroup to group 4 of scroll area 1 of group 1 of group 3 of splitter group 1 of group 1 of window 1
+
+                -- Pass 1: aktuell sichtbare Buttons
                 repeat with _E in every UI element of _NavGroup
                     if class of _E is button then
                         try
@@ -118,6 +190,27 @@ on clickNavSection(_SectionName)
                         end try
                     end if
                 end repeat
+
+                -- Pass 2: Sidebar scrollt evtl. weitere Buttons frei → nach unten scrollen
+                try
+                    set _SA to scroll area 1 of group 1 of group 3 of splitter group 1 of group 1 of window 1
+                    set value of scroll bar 1 of _SA to 1.0 -- ans Ende scrollen
+                    delay 0.5
+                    set _NavGroup2 to group 4 of scroll area 1 of group 1 of group 3 of splitter group 1 of group 1 of window 1
+                    repeat with _E in every UI element of _NavGroup2
+                        if class of _E is button then
+                            try
+                                if (value of attribute "AXIdentifier" of _E) = (_SectionName & "_Navigator") then
+                                    click _E
+                                    return true
+                                end if
+                            end try
+                        end if
+                    end repeat
+                    -- Zurück nach oben scrollen (für die nächste Suche)
+                    set value of scroll bar 1 of _SA to 0.0
+                end try
+
             end try
         end tell
     end tell
@@ -127,9 +220,8 @@ end clickNavSection
 
 -- ╔══════════════════════════════════════════════════════════╗
 -- ║  HANDLER: Alle Checkboxen in aktueller Sektion          ║
--- ║  Sucht bis Tiefe 3 (Tiefe 3 für Automation-Sektion)    ║
--- ║  Auth-Dialog nur bei fehlgeschlagenem Klick             ║
--- ║  Retry-Logik für nicht-aktivierbare Einträge            ║
+-- ║  Sucht bis Tiefe 3, Auth-Dialog nur bei fehlgeschl.     ║
+-- ║  Klick, Retry für nicht-aktivierbare Einträge           ║
 -- ╚══════════════════════════════════════════════════════════╝
 
 on enableCurrentSection(_U, _P)
@@ -161,11 +253,9 @@ on enableCurrentSection(_U, _P)
                                             click _C1
                                             delay _DelayClick
                                             if value of _C1 is 0 then
-                                                -- Klick hat nicht funktioniert: Auth oder nicht aktivierbar
                                                 my handleAuthDialog(_U, _P)
                                                 delay _DelayAuth
                                                 if value of _C1 is 0 then
-                                                    -- Nicht aktivierbar, beim nächsten Durchlauf überspringen
                                                     set _NeedsRetry to true
                                                     set _SkipCount to _SkipCount + 1
                                                     set _RowDone to true
@@ -183,7 +273,7 @@ on enableCurrentSection(_U, _P)
                                     repeat with _C2 in every UI element of _C1
                                         if _RowDone then exit repeat
 
-                                        -- Tiefe 2: Checkbox in C1 (Netzwerk, Mikrofon, etc.)
+                                        -- Tiefe 2: Checkbox in C1
                                         if class of _C2 is checkbox then
                                             if _FoundIdx < _SkipCount then
                                                 set _FoundIdx to _FoundIdx + 1
@@ -255,9 +345,6 @@ end enableCurrentSection
 
 -- ╔══════════════════════════════════════════════════════════╗
 -- ║  HAUPTPROGRAMM                                          ║
--- ║  Kein Back-Navigate zwischen Sektionen:                 ║
--- ║  group 4 (Sidebar) bleibt von jeder Untersektion        ║
--- ║  aus zugänglich - spart ~30 Sekunden                    ║
 -- ╚══════════════════════════════════════════════════════════╝
 
 tell application "System Settings"
@@ -278,13 +365,9 @@ repeat with _SectionName in _TargetSections
         delay _DelayNav
         set _N to enableCurrentSection(_AdminUser, _AdminPass)
         set _TotalEnabled to _TotalEnabled + _N
-        -- Nach jeder Untersektion zurück zur Hauptansicht:
-        -- group 4 (Sidebar) ist nur auf der Hauptansicht verfügbar,
-        -- nach Button-Klick in Untersektion verschwindet sie (error -1719)
-        tell application "System Settings"
-            set the current pane to pane id "com.apple.settings.PrivacySecurity.extension"
-        end tell
-        delay 0.8
+        -- Zurück zur Hauptansicht: dismisst erst offene Dialoge,
+        -- dann navigiert zurück (mit Retry bei noch offenem Modal)
+        navigateBack(_AdminUser, _AdminPass)
     else
         set _SectionsSkipped to _SectionsSkipped + 1
     end if
