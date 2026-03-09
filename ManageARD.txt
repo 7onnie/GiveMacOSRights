@@ -380,8 +380,135 @@ end tell
 
 -- ── Discovery-Modus für Info-Panels ──────────────────────
 if _DiscoverInfoPanel then
-    -- Verwaltung Info-Panel scannen
+    -- 1. Verwaltung Info-Panel scannen
     discoverInfoPanel("Entfernte VerwaltungToggle.infoButton", _SubSA, _LogFile)
+
+    -- 2. Optionen-Button klicken (button 1 direkt in Sheet-SA) und scannen
+    tell application "System Events"
+        tell process "System Settings"
+            try
+                set _SheetSA to scroll area 1 of group 1 of sheet 1 of window 1
+                -- Button 1 der Sheet-SA = "Optionen..."
+                set _OptBtn to button 1 of _SheetSA
+                click _OptBtn
+                delay 1.0
+                -- Scan: neues Sheet oder Dialog?
+                set _Log2 to linefeed & "=== OPTIONEN-DIALOG ===" & linefeed
+                set _S2Count to count of sheets of window 1
+                set _Log2 to _Log2 & "Sheets nach Optionen-Klick: " & _S2Count & linefeed
+                if _S2Count > 1 then
+                    -- Sheet 2 scannen
+                    set _Sh2 to sheet 2 of window 1
+                    set _Log2 to _Log2 & "Sheet 2 Elemente: " & (count of every UI element of _Sh2) & linefeed
+                    set _EIdx to 0
+                    repeat with _El in every UI element of _Sh2
+                        set _EIdx to _EIdx + 1
+                        set _Log2 to _Log2 & "  El[" & _EIdx & "]: class=" & (class of _El as string)
+                        try
+                            set _Log2 to _Log2 & " title=" & (title of _El)
+                        end try
+                        try
+                            set _Log2 to _Log2 & " value=" & (value of _El as string)
+                        end try
+                        try
+                            set _Log2 to _Log2 & " desc=" & (value of attribute "AXDescription" of _El)
+                        end try
+                        try
+                            set _Log2 to _Log2 & " AXId=" & (value of attribute "AXIdentifier" of _El)
+                        end try
+                        set _Log2 to _Log2 & linefeed
+                        set _KIdx to 0
+                        repeat with _K in every UI element of _El
+                            set _KIdx to _KIdx + 1
+                            set _Log2 to _Log2 & "    K[" & _KIdx & "]: class=" & (class of _K as string)
+                            try
+                                set _Log2 to _Log2 & " title=" & (title of _K)
+                            end try
+                            try
+                                set _Log2 to _Log2 & " value=" & (value of _K as string)
+                            end try
+                            try
+                                set _Log2 to _Log2 & " desc=" & (value of attribute "AXDescription" of _K)
+                            end try
+                            try
+                                set _Log2 to _Log2 & " AXId=" & (value of attribute "AXIdentifier" of _K)
+                            end try
+                            set _Log2 to _Log2 & linefeed
+                        end repeat
+                    end repeat
+                else
+                    -- Kein zweites Sheet → eventuell in Sheet 1 gewechselt
+                    set _Log2 to _Log2 & "Kein Sheet 2. Sheet-1 Buttons:" & linefeed
+                    set _BIdx to 0
+                    repeat with _Btn in every button of sheet 1 of window 1
+                        set _BIdx to _BIdx + 1
+                        set _Log2 to _Log2 & "  Btn[" & _BIdx & "]:"
+                        try
+                            set _Log2 to _Log2 & " title=" & (title of _Btn)
+                        end try
+                        try
+                            set _Log2 to _Log2 & " AXId=" & (value of attribute "AXIdentifier" of _Btn)
+                        end try
+                        set _Log2 to _Log2 & linefeed
+                    end repeat
+                    -- Alle direkte Kinder von Sheet 1 scannen
+                    set _EIdx to 0
+                    repeat with _El in every UI element of sheet 1 of window 1
+                        set _EIdx to _EIdx + 1
+                        set _Log2 to _Log2 & "  ShEl[" & _EIdx & "]: class=" & (class of _El as string)
+                        try
+                            set _Log2 to _Log2 & " AXId=" & (value of attribute "AXIdentifier" of _El)
+                        end try
+                        try
+                            set _Log2 to _Log2 & " title=" & (title of _El)
+                        end try
+                        set _Log2 to _Log2 & linefeed
+                        set _KIdx to 0
+                        repeat with _K in every UI element of _El
+                            set _KIdx to _KIdx + 1
+                            set _Log2 to _Log2 & "    K[" & _KIdx & "]: class=" & (class of _K as string)
+                            try
+                                set _Log2 to _Log2 & " title=" & (title of _K)
+                            end try
+                            try
+                                set _Log2 to _Log2 & " value=" & (value of _K as string)
+                            end try
+                            try
+                                set _Log2 to _Log2 & " AXId=" & (value of attribute "AXIdentifier" of _K)
+                            end try
+                            set _Log2 to _Log2 & linefeed
+                        end repeat
+                    end repeat
+                end if
+                -- Optionen schließen (Escape)
+                key code 53
+                delay 0.5
+                -- Log2 anhängen
+                set _FH to open for access (POSIX file _LogFile) with write permission
+                set eof of _FH to (get eof of _FH)
+                write _Log2 to _FH starting at eof
+                close access _FH
+            on error _ErrOpt
+                try
+                    close access (POSIX file _LogFile)
+                end try
+            end try
+        end tell
+    end tell
+
+    -- 3. Verwaltung Sheet schließen
+    tell application "System Events"
+        tell process "System Settings"
+            try
+                click button 2 of group 1 of sheet 1 of window 1
+                delay 0.8
+            end try
+        end tell
+    end tell
+
+    -- 4. Anmeldung Info-Panel scannen
+    discoverInfoPanel("Entfernte AnmeldungToggle.infoButton", _SubSA, _LogFile)
+
     display dialog "Discovery abgeschlossen. Log: " & _LogFile buttons {"OK"} default button 1
     tell application "System Settings" to quit
     return
