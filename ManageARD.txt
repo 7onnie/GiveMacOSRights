@@ -166,8 +166,6 @@ on setSheetCheckbox(_AXId, _TargetVal)
                                 if value of _CB is not _TargetVal then
                                     click _CB
                                     delay _DelayClick
-                                    my handleAuthDialog(_AdminUser, _AdminPass)
-                                    delay _DelayAuth
                                 end if
                                 return true
                             end if
