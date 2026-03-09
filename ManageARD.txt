@@ -171,20 +171,62 @@ on discoverUI(_LogPath)
                                             try
                                                 set _Log to _Log & "  AXDisclosing: " & (value of attribute "AXDisclosing" of _Row) & linefeed
                                             end try
+                                            -- Tiefe 1
                                             set _CIdx to 0
-                                            repeat with _C in every UI element of _Row
+                                            repeat with _C1 in every UI element of _Row
                                                 set _CIdx to _CIdx + 1
-                                                set _Log to _Log & "  Child " & _CIdx & ": class=" & (class of _C as string)
+                                                set _Log to _Log & "  C1[" & _CIdx & "]: class=" & (class of _C1 as string)
                                                 try
-                                                    set _Log to _Log & "  title=" & (title of _C)
+                                                    set _Log to _Log & " title=" & (title of _C1)
                                                 end try
                                                 try
-                                                    set _Log to _Log & "  value=" & (value of _C as string)
+                                                    set _Log to _Log & " value=" & (value of _C1 as string)
                                                 end try
                                                 try
-                                                    set _Log to _Log & "  AXId=" & (value of attribute "AXIdentifier" of _C)
+                                                    set _Log to _Log & " desc=" & (value of attribute "AXDescription" of _C1)
+                                                end try
+                                                try
+                                                    set _Log to _Log & " AXId=" & (value of attribute "AXIdentifier" of _C1)
                                                 end try
                                                 set _Log to _Log & linefeed
+                                                -- Tiefe 2
+                                                set _C2Idx to 0
+                                                repeat with _C2 in every UI element of _C1
+                                                    set _C2Idx to _C2Idx + 1
+                                                    set _Log to _Log & "    C2[" & _C2Idx & "]: class=" & (class of _C2 as string)
+                                                    try
+                                                        set _Log to _Log & " title=" & (title of _C2)
+                                                    end try
+                                                    try
+                                                        set _Log to _Log & " value=" & (value of _C2 as string)
+                                                    end try
+                                                    try
+                                                        set _Log to _Log & " desc=" & (value of attribute "AXDescription" of _C2)
+                                                    end try
+                                                    try
+                                                        set _Log to _Log & " AXId=" & (value of attribute "AXIdentifier" of _C2)
+                                                    end try
+                                                    set _Log to _Log & linefeed
+                                                    -- Tiefe 3
+                                                    set _C3Idx to 0
+                                                    repeat with _C3 in every UI element of _C2
+                                                        set _C3Idx to _C3Idx + 1
+                                                        set _Log to _Log & "      C3[" & _C3Idx & "]: class=" & (class of _C3 as string)
+                                                        try
+                                                            set _Log to _Log & " title=" & (title of _C3)
+                                                        end try
+                                                        try
+                                                            set _Log to _Log & " value=" & (value of _C3 as string)
+                                                        end try
+                                                        try
+                                                            set _Log to _Log & " desc=" & (value of attribute "AXDescription" of _C3)
+                                                        end try
+                                                        try
+                                                            set _Log to _Log & " AXId=" & (value of attribute "AXIdentifier" of _C3)
+                                                        end try
+                                                        set _Log to _Log & linefeed
+                                                    end repeat
+                                                end repeat
                                             end repeat
                                         end if
                                     end repeat
@@ -240,7 +282,7 @@ delay _DelayNav
 -- Discovery-Modus
 if _DiscoverMode then
     set _Result to discoverUI(_LogFile)
-    display dialog "Discovery abgeschlossen." & linefeed & "Log: " & _LogFile & linefeed & linefeed & "Erste 500 Zeichen:" & linefeed & (text 1 thru (min(500, (length of _Result))) of _Result) buttons {"OK"} default button 1
+    display dialog "Discovery abgeschlossen. Log: " & _LogFile buttons {"OK"} default button 1
     return
 end if
 
