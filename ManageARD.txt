@@ -1,5 +1,5 @@
 -- ===========================================================
--- ManageARD.applescript v3
+-- ManageARD.applescript v4
 -- Entfernte Verwaltung, Anmeldung & Scriptsteuerung konfigurieren
 -- NUR FÜR TESTSYSTEME
 -- ===========================================================
@@ -12,7 +12,7 @@ property _AdminUser : "praxis"
 property _AdminPass : "praxis"
 
 -- "Activate"   → Ersteinrichtung (alles einschalten inkl. Sub-Optionen)
--- "Reactivate" → Nur Haupt-Toggles einschalten (Sub-Optionen bleiben)
+-- "Reactivate" → Alle Toggles & Sub-Optionen einmal aus und wieder an
 property _Mode : "Activate"
 
 property _DelayClick : 0.3      -- Warten nach Klick
@@ -227,15 +227,16 @@ end closeSheet
 
 
 -- ╔══════════════════════════════════════════════════════════╗
--- ║  HANDLER: Alle Checkboxen in Optionen-Sheet aktivieren  ║
--- ║  Scannt alle Gruppen im Sheet nach Checkboxen           ║
+-- ║  HANDLER: Alle Optionen-Checkboxen setzen               ║
+-- ║  Scannt SA → Gruppen / Outline-Rows im Optionen-Sheet   ║
+-- ║  Schließt das innere Optionen-Sheet nach Bearbeitung    ║
 -- ╚══════════════════════════════════════════════════════════╝
 
-on enableAllInOptionen()
+on setAllInOptionen(_TargetVal)
     tell application "System Events"
         tell process "System Settings"
             try
-                -- Optionen öffnet entweder sheet 2 oder ein Sheet im Sheet
+                -- Optionen-Sheet bestimmen (sheet 2 oder sheet 1 of sheet 1)
                 set _Sh to missing value
                 if (count of sheets of window 1) > 1 then
                     set _Sh to sheet 2 of window 1
@@ -244,42 +245,118 @@ on enableAllInOptionen()
                 end if
 
                 if _Sh is not missing value then
-                    -- Alle Checkboxen direkt + in Groups aktivieren
+                    -- Direkte Checkboxen im Sheet
                     repeat with _CB in every checkbox of _Sh
-                        if value of _CB is 0 then
+                        if value of _CB is not _TargetVal then
                             click _CB
                             delay _DelayClick
                         end if
                     end repeat
+
+                    -- Gruppen im Sheet
                     repeat with _Grp in every group of _Sh
+                        -- Direkte Checkboxen in Gruppe
                         repeat with _CB in every checkbox of _Grp
-                            if value of _CB is 0 then
+                            if value of _CB is not _TargetVal then
                                 click _CB
                                 delay _DelayClick
                             end if
                         end repeat
+
+                        -- Scroll Areas in Gruppe
+                        repeat with _SA in every scroll area of _Grp
+                            -- Direkte Checkboxen in SA
+                            repeat with _CB in every checkbox of _SA
+                                if value of _CB is not _TargetVal then
+                                    click _CB
+                                    delay _DelayClick
+                                end if
+                            end repeat
+
+                            -- Outline in SA → Rows → Checkboxen
+                            try
+                                set _OLs to every outline of _SA
+                                repeat with _OL in _OLs
+                                    set _Rows to every row of _OL
+                                    repeat with _Row in _Rows
+                                        -- Checkboxen direkt in Row
+                                        repeat with _CB in every checkbox of _Row
+                                            if value of _CB is not _TargetVal then
+                                                click _CB
+                                                delay _DelayClick
+                                            end if
+                                        end repeat
+                                        -- UI-Elemente in Row (eine Ebene tiefer)
+                                        repeat with _El in every UI element of _Row
+                                            if class of _El is checkbox then
+                                                if value of _El is not _TargetVal then
+                                                    click _El
+                                                    delay _DelayClick
+                                                end if
+                                            end if
+                                        end repeat
+                                    end repeat
+                                end repeat
+                            end try
+
+                            -- Gruppen in SA
+                            repeat with _G2 in every group of _SA
+                                repeat with _CB in every checkbox of _G2
+                                    if value of _CB is not _TargetVal then
+                                        click _CB
+                                        delay _DelayClick
+                                    end if
+                                end repeat
+                            end repeat
+                        end repeat
                     end repeat
-                    -- Schließen: nicht-Hilfe, nicht-Abbrechen Button
-                    repeat with _Btn in every button of _Sh
-                        set _BDesc to ""
-                        try
-                            set _BDesc to value of attribute "AXDescription" of _Btn
-                        end try
-                        set _BTitle to ""
-                        try
-                            set _BTitle to title of _Btn
-                        end try
-                        if _BDesc is not "Hilfe" and _BTitle is not in {"Abbrechen", "Cancel"} then
-                            click _Btn
-                            delay 0.5
+
+                    -- Optionen-Sheet schließen: zuerst Button in Gruppen suchen
+                    set _Closed to false
+                    repeat with _Grp in every group of _Sh
+                        if _Closed then
                             exit repeat
                         end if
+                        repeat with _Btn in every button of _Grp
+                            try
+                                set _BN to name of _Btn
+                                if _BN is not missing value then
+                                    if _BN is not in {"Abbrechen", "Cancel", "Hilfe"} then
+                                        click _Btn
+                                        set _Closed to true
+                                        delay 0.5
+                                        exit repeat
+                                    end if
+                                end if
+                            end try
+                        end repeat
                     end repeat
+                    -- Dann direkte Buttons im Sheet
+                    if not _Closed then
+                        repeat with _Btn in every button of _Sh
+                            try
+                                set _BN to name of _Btn
+                                if _BN is not missing value then
+                                    if _BN is not in {"Abbrechen", "Cancel", "Hilfe"} then
+                                        click _Btn
+                                        set _Closed to true
+                                        delay 0.5
+                                        exit repeat
+                                    end if
+                                end if
+                            end try
+                        end repeat
+                    end if
+                    -- Fallback: Return-Taste
+                    if not _Closed then
+                        key code 36
+                        delay 0.5
+                    end if
                 end if
             end try
         end tell
     end tell
-end enableAllInOptionen
+end setAllInOptionen
 
 
 -- ╔══════════════════════════════════════════════════════════╗
@@ -317,19 +394,15 @@ setMainToggle("Entfernte VerwaltungToggle", 1, _SubSA)
 setMainToggle("Entfernte AnmeldungToggle", 1, _SubSA)
 setMainToggle("Skriptfernsteuerung für AppsToggle", 1, _SubSA)
 
--- ── 3. Sub-Optionen (beide Modi) ─────────────────────────
-if _Mode is "Activate" or _Mode is "Reactivate" then
+-- ── 3. Entfernte Verwaltung – Info-Panel ─────────────────
+clickInfoButton("Entfernte VerwaltungToggle.infoButton", _SubSA)
+delay _DelayPanel
 
-    -- ── 2a. Entfernte Verwaltung – Info-Panel ─────────────
-    clickInfoButton("Entfernte VerwaltungToggle.infoButton", _SubSA)
-    delay _DelayPanel
-
-    -- Checkboxen im Sheet konfigurieren (AXIds aus Discovery)
-    setSheetCheckbox("AlwaysShowInMenuToggle", 0)      -- Status in Menüleiste: AUS
-    setSheetCheckbox("PublicScreenControlToggle", 0)   -- Genehmigung anfordern: AUS
-    setSheetCheckbox("VNCControlScreenToggle", 0)      -- VNC mit Passwort: AUS
-
-    -- Optionen-Button klicken (button 1 in Sheet-SA = "Optionen...")
+-- Reactivate: Sub-Checkboxen zuerst auf AN setzen, dann Optionen deaktivieren (cycle)
+if _Mode is "Reactivate" then
+    setSheetCheckbox("AlwaysShowInMenuToggle", 1)
+    setSheetCheckbox("PublicScreenControlToggle", 1)
+    setSheetCheckbox("VNCControlScreenToggle", 1)
     tell application "System Events"
         tell process "System Settings"
             try
@@ -338,24 +411,40 @@ if _Mode is "Activate" or _Mode is "Reactivate" then
         end tell
     end tell
     delay _DelayPanel
+    setAllInOptionen(0)
+    delay 0.3
+end if
 
-    -- Alle Optionen-Haken aktivieren
-    enableAllInOptionen()
+-- SOLL-Werte setzen (beide Modi)
+setSheetCheckbox("AlwaysShowInMenuToggle", 0)      -- Status in Menüleiste: AUS
+setSheetCheckbox("PublicScreenControlToggle", 0)   -- Genehmigung anfordern: AUS
+setSheetCheckbox("VNCControlScreenToggle", 0)      -- VNC mit Passwort: AUS
+tell application "System Events"
+    tell process "System Settings"
+        try
+            click button 1 of scroll area 1 of group 1 of sheet 1 of window 1
+        end try
+    end tell
+end tell
+delay _DelayPanel
+setAllInOptionen(1)
+delay 0.3
 
-    -- Verwaltung-Sheet schließen
-    closeSheet()
-    delay 0.5
+-- Verwaltung-Sheet schließen
+closeSheet()
+delay 0.5
 
-    -- ── 2b. Entfernte Anmeldung – Info-Panel ─────────────
+-- ── 4. Entfernte Anmeldung – Info-Panel ──────────────────
+
+-- Reactivate: FDA zuerst deaktivieren (cycle)
+if _Mode is "Reactivate" then
     clickInfoButton("Entfernte AnmeldungToggle.infoButton", _SubSA)
     delay _DelayPanel
-
-    -- Vollzugriff auf Festplatte: checkbox 1 of group 2 (kein AXId)
     tell application "System Events"
         tell process "System Settings"
             try
                 set _FDACb to checkbox 1 of group 2 of scroll area 1 of group 1 of sheet 1 of window 1
-                if value of _FDACb is 0 then
+                if value of _FDACb is 1 then
                     click _FDACb
                     delay _DelayClick
                     my handleAuthDialog(_AdminUser, _AdminPass)
@@ -364,11 +453,27 @@ if _Mode is "Activate" or _Mode is "Reactivate" then
             end try
         end tell
     end tell
-
-    -- Anmeldung-Sheet schließen
     closeSheet()
-
+    delay 0.5
 end if
+
+-- FDA aktivieren (beide Modi)
+clickInfoButton("Entfernte AnmeldungToggle.infoButton", _SubSA)
+delay _DelayPanel
+tell application "System Events"
+    tell process "System Settings"
+        try
+            set _FDACb to checkbox 1 of group 2 of scroll area 1 of group 1 of sheet 1 of window 1
+            if value of _FDACb is 0 then
+                click _FDACb
+                delay _DelayClick
+                my handleAuthDialog(_AdminUser, _AdminPass)
+                delay _DelayAuth
+            end if
+        end try
+    end tell
+end tell
+closeSheet()
 
 display notification "ManageARD " & _Mode & " abgeschlossen." with title "ManageARD"
 
