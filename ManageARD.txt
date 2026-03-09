@@ -15,10 +15,10 @@ property _AdminPass : "praxis"
 -- "Reactivate" → Alle Toggles & Sub-Optionen einmal aus und wieder an
 property _Mode : "Activate"
 
-property _DelayClick : 0.3      -- Warten nach Klick
+property _DelayClick : 0.1      -- Warten nach Klick
 property _DelayAuth : 0.5       -- Warten nach Auth-Dialog
-property _DelayNav : 1.5        -- Warten nach Pane-Wechsel
-property _DelayPanel : 1.0      -- Warten nach Info-Panel/Sheet öffnen
+property _DelayNav : 0.25        -- Warten nach Pane-Wechsel
+property _DelayPanel : 0.125      -- Warten nach Info-Panel/Sheet öffnen
 
 
 -- ╔══════════════════════════════════════════════════════════╗
@@ -132,8 +132,9 @@ on setMainToggle(_AXId, _TargetVal, _SubSA)
                                         if value of _K is not _TargetVal then
                                             click _K
                                             delay _DelayClick
-                                            my handleAuthDialog(_AdminUser, _AdminPass)
-                                            delay _DelayAuth
+                                            if my handleAuthDialog(_AdminUser, _AdminPass) then
+                                                delay _DelayAuth
+                                            end if
                                         end if
                                         return true
                                     end if
@@ -350,8 +351,9 @@ tell application "System Events"
                 if value of _FDACb is 1 then
                     click _FDACb
                     delay _DelayClick
-                    my handleAuthDialog(_AdminUser, _AdminPass)
-                    delay _DelayAuth
+                    if my handleAuthDialog(_AdminUser, _AdminPass) then
+                        delay _DelayAuth
+                    end if
                 end if
             end if
             -- Aktivieren wenn deaktiviert (beide Modi)
