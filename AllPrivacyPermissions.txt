@@ -1,5 +1,5 @@
 -- ===========================================================
--- AllPrivacyPermissions.applescript v9
+-- AllPrivacyPermissions.applescript v10
 -- Schnell & gezielt: Alle Rechte für alle Apps aktivieren
 -- NUR FÜR TESTSYSTEME
 -- ===========================================================
@@ -223,21 +223,25 @@ on enableCurrentSection(_U, _P)
     set _SkipCount to 0
 
     -- Pre-Pass: eingeklappte Disclosure-Rows aufklappen (z.B. Automation: tomedo → Finder)
+    -- Wird mehrfach wiederholt, weil neue Child-Rows nach dem Aufklappen ins Outline kommen
+    -- und den ursprünglichen Index verschieben können.
     tell application "System Events"
         tell process "System Settings"
-            try
-                set _Outline to outline 1 of scroll area 1 of group 1 of scroll area 1 of group 1 of group 3 of splitter group 1 of group 1 of window 1
-                repeat with _Row in every UI element of _Outline
-                    if class of _Row is row then
-                        try
-                            if value of attribute "AXDisclosing" of _Row is false then
-                                set value of attribute "AXDisclosing" of _Row to true
-                                delay 0.15
-                            end if
-                        end try
-                    end if
-                end repeat
-            end try
+            repeat 3 times
+                try
+                    set _Outline to outline 1 of scroll area 1 of group 1 of scroll area 1 of group 1 of group 3 of splitter group 1 of group 1 of window 1
+                    repeat with _Row in every UI element of _Outline
+                        if class of _Row is row then
+                            try
+                                if value of attribute "AXDisclosing" of _Row is false then
+                                    set value of attribute "AXDisclosing" of _Row to true
+                                    delay 0.15
+                                end if
+                            end try
+                        end if
+                    end repeat
+                end try
+            end repeat
         end tell
     end tell
 
@@ -398,3 +402,5 @@ end repeat
 display notification ¬
     ((_SectionsProcessed as string) & " Sektionen, " & (_TotalEnabled as string) & " Rechte aktiviert, " & (_SectionsSkipped as string) & " nicht gefunden.") ¬
     with title "Privacy Setup abgeschlossen"
+
+tell application "System Settings" to quit
