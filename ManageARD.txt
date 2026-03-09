@@ -1,5 +1,5 @@
 -- ===========================================================
--- ManageARD.applescript v2
+-- ManageARD.applescript v3
 -- Entfernte Verwaltung, Anmeldung & Scriptsteuerung konfigurieren
 -- NUR FÜR TESTSYSTEME
 -- ===========================================================
@@ -18,11 +18,7 @@ property _Mode : "Activate"
 property _DelayClick : 0.3      -- Warten nach Klick
 property _DelayAuth : 0.5       -- Warten nach Auth-Dialog
 property _DelayNav : 1.5        -- Warten nach Pane-Wechsel
-property _DelayPanel : 1.0      -- Warten nach Info-Panel öffnen
-
--- Discovery für Info-Panels: true → Info-Panel öffnen & scannen, nichts konfigurieren
-property _DiscoverInfoPanel : true
-property _LogFile : "/tmp/ManageARD_infopanel.log"
+property _DelayPanel : 1.0      -- Warten nach Info-Panel/Sheet öffnen
 
 
 -- ╔══════════════════════════════════════════════════════════╗
@@ -119,18 +115,16 @@ end handleAuthDialog
 
 
 -- ╔══════════════════════════════════════════════════════════╗
--- ║  HANDLER: Checkbox per AXIdentifier setzen              ║
+-- ║  HANDLER: Checkbox per AXId in SubSA setzen             ║
+-- ║  Durchsucht alle Groups in der Sharing-ScrollArea       ║
 -- ╚══════════════════════════════════════════════════════════╝
 
--- Setzt Checkbox mit gegebener AXId auf _TargetVal (0=aus, 1=ein).
--- Sucht in der SubSA (Sharing-Content) oder in einem übergebenen Container.
-on setCheckboxById(_AXId, _TargetVal, _Container)
+on setMainToggle(_AXId, _TargetVal, _SubSA)
     tell application "System Events"
         tell process "System Settings"
             try
-                repeat with _El in every UI element of _Container
-                    set _ElClass to class of _El
-                    if _ElClass is group or _ElClass is UI element or _ElClass is scroll area then
+                repeat with _El in every UI element of _SubSA
+                    if class of _El is group then
                         repeat with _K in every UI element of _El
                             if class of _K is checkbox then
                                 try
@@ -152,20 +146,51 @@ on setCheckboxById(_AXId, _TargetVal, _Container)
         end tell
     end tell
     return false
-end setCheckboxById
+end setMainToggle
 
 
 -- ╔══════════════════════════════════════════════════════════╗
--- ║  HANDLER: Button per AXIdentifier klicken               ║
+-- ║  HANDLER: Checkbox per AXId im Sheet setzen             ║
+-- ║  Durchsucht alle Groups in Sheet-ScrollArea             ║
 -- ╚══════════════════════════════════════════════════════════╝
 
-on clickButtonById(_AXId, _Container)
+on setSheetCheckbox(_AXId, _TargetVal)
     tell application "System Events"
         tell process "System Settings"
             try
-                repeat with _El in every UI element of _Container
-                    set _ElClass to class of _El
-                    if _ElClass is group or _ElClass is UI element or _ElClass is scroll area then
+                set _SheetSA to scroll area 1 of group 1 of sheet 1 of window 1
+                repeat with _Grp in every group of _SheetSA
+                    repeat with _CB in every checkbox of _Grp
+                        try
+                            if (value of attribute "AXIdentifier" of _CB) = _AXId then
+                                if value of _CB is not _TargetVal then
+                                    click _CB
+                                    delay _DelayClick
+                                    my handleAuthDialog(_AdminUser, _AdminPass)
+                                    delay _DelayAuth
+                                end if
+                                return true
+                            end if
+                        end try
+                    end repeat
+                end repeat
+            end try
+        end tell
+    end tell
+    return false
+end setSheetCheckbox
+
+
+-- ╔══════════════════════════════════════════════════════════╗
+-- ║  HANDLER: Info-Button in SubSA klicken                  ║
+-- ╚══════════════════════════════════════════════════════════╝
+
+on clickInfoButton(_AXId, _SubSA)
+    tell application "System Events"
+        tell process "System Settings"
+            try
+                repeat with _El in every UI element of _SubSA
+                    if class of _El is group then
                         repeat with _K in every UI element of _El
                             if class of _K is button then
                                 try
@@ -182,178 +207,79 @@ on clickButtonById(_AXId, _Container)
         end tell
     end tell
     return false
-end clickButtonById
+end clickInfoButton
 
 
 -- ╔══════════════════════════════════════════════════════════╗
--- ║  HANDLER: Info-Panel Discovery                          ║
--- ║  Klickt Info-Button und scannt das resultierende UI     ║
+-- ║  HANDLER: Sheet schließen (button 2 of group 1 of sheet)║
 -- ╚══════════════════════════════════════════════════════════╝
 
-on discoverInfoPanel(_InfoBtnAXId, _SubSA, _LogPath)
-    set _Log to "=== Info-Panel Discovery: " & _InfoBtnAXId & " ===" & linefeed
-    set _Log to _Log & "Datum: " & (current date as string) & linefeed & linefeed
-
-    -- Info-Button klicken
-    set _Found to clickButtonById(_InfoBtnAXId, _SubSA)
-    set _Log to _Log & "Info-Button geklickt: " & _Found & linefeed
-    delay _DelayPanel
-
-    -- Scan: was ist jetzt in Group 3?
+on closeSheet()
     tell application "System Events"
         tell process "System Settings"
             try
-                set _Splitter to splitter group 1 of group 1 of window 1
-                set _G3 to group 3 of _Splitter
-                set _Log to _Log & linefeed & "=== Group 3 nach Klick ===" & linefeed
-                set _Log to _Log & "UI-Elemente: " & (count of every UI element of _G3) & linefeed
-
-                -- Sheets?
-                set _SheetCount to count of sheets of window 1
-                set _Log to _Log & "Sheets: " & _SheetCount & linefeed
-                if _SheetCount > 0 then
-                    set _Log to _Log & linefeed & "=== Sheet 1 ===" & linefeed
-                    -- Buttons direkt im Sheet
-                    set _BIdx to 0
-                    repeat with _Btn in every button of sheet 1 of window 1
-                        set _BIdx to _BIdx + 1
-                        set _Log to _Log & "  Btn[" & _BIdx & "]:"
-                        try
-                            set _Log to _Log & " title=" & (title of _Btn)
-                        end try
-                        try
-                            set _Log to _Log & " desc=" & (value of attribute "AXDescription" of _Btn)
-                        end try
-                        try
-                            set _Log to _Log & " AXId=" & (value of attribute "AXIdentifier" of _Btn)
-                        end try
-                        set _Log to _Log & linefeed
-                    end repeat
-                    -- Scroll Area im Sheet → Inhalt
-                    try
-                        set _SheetSA to scroll area 1 of group 1 of sheet 1 of window 1
-                        set _Log to _Log & linefeed & "Sheet-ScrollArea → " & (count of every UI element of _SheetSA) & " Elemente" & linefeed
-                        set _SAIdx to 0
-                        repeat with _SAEl in every UI element of _SheetSA
-                            set _SAIdx to _SAIdx + 1
-                            set _Log to _Log & linefeed & "SA-El[" & _SAIdx & "]: class=" & (class of _SAEl as string)
-                            try
-                                set _Log to _Log & " title=" & (title of _SAEl)
-                            end try
-                            try
-                                set _Log to _Log & " value=" & (value of _SAEl as string)
-                            end try
-                            try
-                                set _Log to _Log & " desc=" & (value of attribute "AXDescription" of _SAEl)
-                            end try
-                            try
-                                set _Log to _Log & " AXId=" & (value of attribute "AXIdentifier" of _SAEl)
-                            end try
-                            set _Log to _Log & linefeed
-                            -- Kinder
-                            set _KIdx to 0
-                            repeat with _K in every UI element of _SAEl
-                                set _KIdx to _KIdx + 1
-                                set _Log to _Log & "  K[" & _KIdx & "]: class=" & (class of _K as string)
-                                try
-                                    set _Log to _Log & " title=" & (title of _K)
-                                end try
-                                try
-                                    set _Log to _Log & " value=" & (value of _K as string)
-                                end try
-                                try
-                                    set _Log to _Log & " desc=" & (value of attribute "AXDescription" of _K)
-                                end try
-                                try
-                                    set _Log to _Log & " AXId=" & (value of attribute "AXIdentifier" of _K)
-                                end try
-                                set _Log to _Log & linefeed
-                                -- Enkel
-                                set _EKIdx to 0
-                                repeat with _EK in every UI element of _K
-                                    set _EKIdx to _EKIdx + 1
-                                    set _Log to _Log & "    EK[" & _EKIdx & "]: class=" & (class of _EK as string)
-                                    try
-                                        set _Log to _Log & " title=" & (title of _EK)
-                                    end try
-                                    try
-                                        set _Log to _Log & " value=" & (value of _EK as string)
-                                    end try
-                                    try
-                                        set _Log to _Log & " desc=" & (value of attribute "AXDescription" of _EK)
-                                    end try
-                                    try
-                                        set _Log to _Log & " AXId=" & (value of attribute "AXIdentifier" of _EK)
-                                    end try
-                                    set _Log to _Log & linefeed
-                                end repeat
-                            end repeat
-                        end repeat
-                    on error _ErrSA
-                        set _Log to _Log & "Sheet-SA Fehler: " & _ErrSA & linefeed
-                    end try
-                end if
-
-                -- Subgroups in G3 (falls neues Panel erscheint)
-                repeat with _SG in every group of _G3
-                    set _Log to _Log & linefeed & "SubGroup von G3:" & linefeed
-                    repeat with _SA in every scroll area of _SG
-                        set _Log to _Log & "  ScrollArea → " & (count of every UI element of _SA) & " Elemente" & linefeed
-                        set _EIdx to 0
-                        repeat with _El in every UI element of _SA
-                            set _EIdx to _EIdx + 1
-                            set _Log to _Log & "  El[" & _EIdx & "]: class=" & (class of _El as string)
-                            try
-                                set _Log to _Log & " title=" & (title of _El)
-                            end try
-                            try
-                                set _Log to _Log & " value=" & (value of _El as string)
-                            end try
-                            try
-                                set _Log to _Log & " AXId=" & (value of attribute "AXIdentifier" of _El)
-                            end try
-                            set _Log to _Log & linefeed
-                            -- Kinder
-                            set _KIdx to 0
-                            repeat with _K in every UI element of _El
-                                set _KIdx to _KIdx + 1
-                                set _Log to _Log & "    K[" & _KIdx & "]: class=" & (class of _K as string)
-                                try
-                                    set _Log to _Log & " title=" & (title of _K)
-                                end try
-                                try
-                                    set _Log to _Log & " value=" & (value of _K as string)
-                                end try
-                                try
-                                    set _Log to _Log & " desc=" & (value of attribute "AXDescription" of _K)
-                                end try
-                                try
-                                    set _Log to _Log & " AXId=" & (value of attribute "AXIdentifier" of _K)
-                                end try
-                                set _Log to _Log & linefeed
-                            end repeat
-                        end repeat
-                    end repeat
-                end repeat
-
-            on error _Err
-                set _Log to _Log & "Fehler: " & _Err & linefeed
+                click button 2 of group 1 of sheet 1 of window 1
+                delay 0.5
             end try
         end tell
     end tell
+end closeSheet
 
-    -- In Datei schreiben (append)
-    try
-        set _FH to open for access (POSIX file _LogPath) with write permission
-        set eof of _FH to 0
-        write _Log to _FH
-        close access _FH
-    on error
-        try
-            close access (POSIX file _LogPath)
-        end try
-    end try
-end discoverInfoPanel
+
+-- ╔══════════════════════════════════════════════════════════╗
+-- ║  HANDLER: Alle Checkboxen in Optionen-Sheet aktivieren  ║
+-- ║  Scannt alle Gruppen im Sheet nach Checkboxen           ║
+-- ╚══════════════════════════════════════════════════════════╝
+
+on enableAllInOptionen()
+    tell application "System Events"
+        tell process "System Settings"
+            try
+                -- Optionen öffnet entweder sheet 2 oder ein Sheet im Sheet
+                set _Sh to missing value
+                if (count of sheets of window 1) > 1 then
+                    set _Sh to sheet 2 of window 1
+                else if (count of sheets of sheet 1 of window 1) > 0 then
+                    set _Sh to sheet 1 of sheet 1 of window 1
+                end if
+
+                if _Sh is not missing value then
+                    -- Alle Checkboxen direkt + in Groups aktivieren
+                    repeat with _CB in every checkbox of _Sh
+                        if value of _CB is 0 then
+                            click _CB
+                            delay _DelayClick
+                        end if
+                    end repeat
+                    repeat with _Grp in every group of _Sh
+                        repeat with _CB in every checkbox of _Grp
+                            if value of _CB is 0 then
+                                click _CB
+                                delay _DelayClick
+                            end if
+                        end repeat
+                    end repeat
+                    -- Schließen: nicht-Hilfe, nicht-Abbrechen Button
+                    repeat with _Btn in every button of _Sh
+                        set _BDesc to ""
+                        try
+                            set _BDesc to value of attribute "AXDescription" of _Btn
+                        end try
+                        set _BTitle to ""
+                        try
+                            set _BTitle to title of _Btn
+                        end try
+                        if _BDesc is not "Hilfe" and _BTitle is not in {"Abbrechen", "Cancel"} then
+                            click _Btn
+                            delay 0.5
+                            exit repeat
+                        end if
+                    end repeat
+                end if
+            end try
+        end tell
+    end tell
+end enableAllInOptionen
 
 
 -- ╔══════════════════════════════════════════════════════════╗
@@ -368,7 +294,7 @@ end tell
 do shell script "open 'x-apple.systempreferences:com.apple.preferences.sharing'"
 delay _DelayNav
 
--- Referenz auf den Sharing-Content-Bereich
+-- Referenz auf Sharing-Content
 set _SubSA to missing value
 tell application "System Events"
     tell process "System Settings"
@@ -378,161 +304,61 @@ tell application "System Events"
     end tell
 end tell
 
--- ── Discovery-Modus für Info-Panels ──────────────────────
-if _DiscoverInfoPanel then
-    -- 1. Verwaltung Info-Panel scannen
-    discoverInfoPanel("Entfernte VerwaltungToggle.infoButton", _SubSA, _LogFile)
+-- ── 1. Haupt-Toggles aktivieren ──────────────────────────
+setMainToggle("Entfernte VerwaltungToggle", 1, _SubSA)
+setMainToggle("Entfernte AnmeldungToggle", 1, _SubSA)
+setMainToggle("Skriptfernsteuerung für AppsToggle", 1, _SubSA)
 
-    -- 2. Optionen-Button klicken (button 1 direkt in Sheet-SA) und scannen
-    tell application "System Events"
-        tell process "System Settings"
-            try
-                set _SheetSA to scroll area 1 of group 1 of sheet 1 of window 1
-                -- Button 1 der Sheet-SA = "Optionen..."
-                set _OptBtn to button 1 of _SheetSA
-                click _OptBtn
-                delay 1.0
-                -- Scan: neues Sheet oder Dialog?
-                set _Log2 to linefeed & "=== OPTIONEN-DIALOG ===" & linefeed
-                set _S2Count to count of sheets of window 1
-                set _Log2 to _Log2 & "Sheets nach Optionen-Klick: " & _S2Count & linefeed
-                if _S2Count > 1 then
-                    -- Sheet 2 scannen
-                    set _Sh2 to sheet 2 of window 1
-                    set _Log2 to _Log2 & "Sheet 2 Elemente: " & (count of every UI element of _Sh2) & linefeed
-                    set _EIdx to 0
-                    repeat with _El in every UI element of _Sh2
-                        set _EIdx to _EIdx + 1
-                        set _Log2 to _Log2 & "  El[" & _EIdx & "]: class=" & (class of _El as string)
-                        try
-                            set _Log2 to _Log2 & " title=" & (title of _El)
-                        end try
-                        try
-                            set _Log2 to _Log2 & " value=" & (value of _El as string)
-                        end try
-                        try
-                            set _Log2 to _Log2 & " desc=" & (value of attribute "AXDescription" of _El)
-                        end try
-                        try
-                            set _Log2 to _Log2 & " AXId=" & (value of attribute "AXIdentifier" of _El)
-                        end try
-                        set _Log2 to _Log2 & linefeed
-                        set _KIdx to 0
-                        repeat with _K in every UI element of _El
-                            set _KIdx to _KIdx + 1
-                            set _Log2 to _Log2 & "    K[" & _KIdx & "]: class=" & (class of _K as string)
-                            try
-                                set _Log2 to _Log2 & " title=" & (title of _K)
-                            end try
-                            try
-                                set _Log2 to _Log2 & " value=" & (value of _K as string)
-                            end try
-                            try
-                                set _Log2 to _Log2 & " desc=" & (value of attribute "AXDescription" of _K)
-                            end try
-                            try
-                                set _Log2 to _Log2 & " AXId=" & (value of attribute "AXIdentifier" of _K)
-                            end try
-                            set _Log2 to _Log2 & linefeed
-                        end repeat
-                    end repeat
-                else
-                    -- Kein zweites Sheet → eventuell in Sheet 1 gewechselt
-                    set _Log2 to _Log2 & "Kein Sheet 2. Sheet-1 Buttons:" & linefeed
-                    set _BIdx to 0
-                    repeat with _Btn in every button of sheet 1 of window 1
-                        set _BIdx to _BIdx + 1
-                        set _Log2 to _Log2 & "  Btn[" & _BIdx & "]:"
-                        try
-                            set _Log2 to _Log2 & " title=" & (title of _Btn)
-                        end try
-                        try
-                            set _Log2 to _Log2 & " AXId=" & (value of attribute "AXIdentifier" of _Btn)
-                        end try
-                        set _Log2 to _Log2 & linefeed
-                    end repeat
-                    -- Alle direkte Kinder von Sheet 1 scannen
-                    set _EIdx to 0
-                    repeat with _El in every UI element of sheet 1 of window 1
-                        set _EIdx to _EIdx + 1
-                        set _Log2 to _Log2 & "  ShEl[" & _EIdx & "]: class=" & (class of _El as string)
-                        try
-                            set _Log2 to _Log2 & " AXId=" & (value of attribute "AXIdentifier" of _El)
-                        end try
-                        try
-                            set _Log2 to _Log2 & " title=" & (title of _El)
-                        end try
-                        set _Log2 to _Log2 & linefeed
-                        set _KIdx to 0
-                        repeat with _K in every UI element of _El
-                            set _KIdx to _KIdx + 1
-                            set _Log2 to _Log2 & "    K[" & _KIdx & "]: class=" & (class of _K as string)
-                            try
-                                set _Log2 to _Log2 & " title=" & (title of _K)
-                            end try
-                            try
-                                set _Log2 to _Log2 & " value=" & (value of _K as string)
-                            end try
-                            try
-                                set _Log2 to _Log2 & " AXId=" & (value of attribute "AXIdentifier" of _K)
-                            end try
-                            set _Log2 to _Log2 & linefeed
-                        end repeat
-                    end repeat
-                end if
-                -- Optionen schließen (Escape)
-                key code 53
-                delay 0.5
-                -- Log2 anhängen
-                set _FH to open for access (POSIX file _LogFile) with write permission
-                set eof of _FH to (get eof of _FH)
-                write _Log2 to _FH starting at eof
-                close access _FH
-            on error _ErrOpt
-                try
-                    close access (POSIX file _LogFile)
-                end try
-            end try
-        end tell
-    end tell
-
-    -- 3. Verwaltung Sheet schließen
-    tell application "System Events"
-        tell process "System Settings"
-            try
-                click button 2 of group 1 of sheet 1 of window 1
-                delay 0.8
-            end try
-        end tell
-    end tell
-
-    -- 4. Anmeldung Info-Panel scannen
-    discoverInfoPanel("Entfernte AnmeldungToggle.infoButton", _SubSA, _LogFile)
-
-    display dialog "Discovery abgeschlossen. Log: " & _LogFile buttons {"OK"} default button 1
-    tell application "System Settings" to quit
-    return
-end if
-
--- ── Haupt-Toggles aktivieren ─────────────────────────────
-
--- 1. Entfernte Verwaltung AN
-setCheckboxById("Entfernte VerwaltungToggle", 1, _SubSA)
-
--- 2. Entfernte Anmeldung AN
-setCheckboxById("Entfernte AnmeldungToggle", 1, _SubSA)
-
--- 3. Skriptfernsteuerung für Apps AN
-setCheckboxById("Skriptfernsteuerung für AppsToggle", 1, _SubSA)
-
--- ── Sub-Optionen (nur im Activate-Modus) ─────────────────
+-- ── 2. Sub-Optionen (nur im Activate-Modus) ──────────────
 if _Mode is "Activate" then
 
-    -- TODO: Entfernte Verwaltung Info-Panel → Sub-Optionen konfigurieren
-    -- (Nach Info-Panel Discovery befüllen)
+    -- ── 2a. Entfernte Verwaltung – Info-Panel ─────────────
+    clickInfoButton("Entfernte VerwaltungToggle.infoButton", _SubSA)
+    delay _DelayPanel
 
-    -- TODO: Entfernte Anmeldung Info-Panel → FDA aktivieren
-    -- (Nach Info-Panel Discovery befüllen)
+    -- Checkboxen im Sheet konfigurieren (AXIds aus Discovery)
+    setSheetCheckbox("AlwaysShowInMenuToggle", 0)      -- Status in Menüleiste: AUS
+    setSheetCheckbox("PublicScreenControlToggle", 0)   -- Genehmigung anfordern: AUS
+    setSheetCheckbox("VNCControlScreenToggle", 0)      -- VNC mit Passwort: AUS
+
+    -- Optionen-Button klicken (button 1 in Sheet-SA = "Optionen...")
+    tell application "System Events"
+        tell process "System Settings"
+            try
+                click button 1 of scroll area 1 of group 1 of sheet 1 of window 1
+            end try
+        end tell
+    end tell
+    delay _DelayPanel
+
+    -- Alle Optionen-Haken aktivieren
+    enableAllInOptionen()
+
+    -- Verwaltung-Sheet schließen
+    closeSheet()
+    delay 0.5
+
+    -- ── 2b. Entfernte Anmeldung – Info-Panel ─────────────
+    clickInfoButton("Entfernte AnmeldungToggle.infoButton", _SubSA)
+    delay _DelayPanel
+
+    -- Vollzugriff auf Festplatte: checkbox 1 of group 2 (kein AXId)
+    tell application "System Events"
+        tell process "System Settings"
+            try
+                set _FDACb to checkbox 1 of group 2 of scroll area 1 of group 1 of sheet 1 of window 1
+                if value of _FDACb is 0 then
+                    click _FDACb
+                    delay _DelayClick
+                    my handleAuthDialog(_AdminUser, _AdminPass)
+                    delay _DelayAuth
+                end if
+            end try
+        end tell
+    end tell
+
+    -- Anmeldung-Sheet schließen
+    closeSheet()
 
 end if
 
