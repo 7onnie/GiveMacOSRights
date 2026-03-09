@@ -278,23 +278,70 @@ on clickNavSection(_SectionNames)
         tell process "System Settings"
             try
                 set _NavGroup to group 4 of scroll area 1 of group 1 of group 3 of splitter group 1 of group 1 of window 1
-                repeat with _G in every group of _NavGroup
-                    if class of _G is group then
-                        repeat with _E in every UI element of _G
-                            if class of _E is button then
-                                try
-                                    set _BtnID to value of attribute "AXIdentifier" of _E
-                                    repeat with _Name in _SectionNames
-                                        if _BtnID = (_Name & "_Navigator") then
-                                            click _E
-                                            return true
-                                        end if
-                                    end repeat
-                                end try
-                            end if
-                        end repeat
+
+                -- Strategie 1: Buttons direkt in group 4 (neuere macOS-Versionen)
+                repeat with _E in every UI element of _NavGroup
+                    if class of _E is button then
+                        try
+                            set _BtnID to value of attribute "AXIdentifier" of _E
+                            repeat with _Name in _SectionNames
+                                if _BtnID = (_Name & "_Navigator") then
+                                    click _E
+                                    return true
+                                end if
+                            end repeat
+                        end try
                     end if
                 end repeat
+
+                -- Strategie 2: Buttons in Scroll Areas innerhalb group 4
+                repeat with _SA in every scroll area of _NavGroup
+                    repeat with _E in every UI element of _SA
+                        if class of _E is button then
+                            try
+                                set _BtnID to value of attribute "AXIdentifier" of _E
+                                repeat with _Name in _SectionNames
+                                    if _BtnID = (_Name & "_Navigator") then
+                                        click _E
+                                        return true
+                                    end if
+                                end repeat
+                            end try
+                        else if class of _E is group then
+                            repeat with _B in every UI element of _E
+                                if class of _B is button then
+                                    try
+                                        set _BtnID to value of attribute "AXIdentifier" of _B
+                                        repeat with _Name in _SectionNames
+                                            if _BtnID = (_Name & "_Navigator") then
+                                                click _B
+                                                return true
+                                            end if
+                                        end repeat
+                                    end try
+                                end if
+                            end repeat
+                        end if
+                    end repeat
+                end repeat
+
+                -- Strategie 3: Buttons in Sub-Groups (ältere macOS-Versionen)
+                repeat with _G in every group of _NavGroup
+                    repeat with _E in every UI element of _G
+                        if class of _E is button then
+                            try
+                                set _BtnID to value of attribute "AXIdentifier" of _E
+                                repeat with _Name in _SectionNames
+                                    if _BtnID = (_Name & "_Navigator") then
+                                        click _E
+                                        return true
+                                    end if
+                                end repeat
+                            end try
+                        end if
+                    end repeat
+                end repeat
+
             end try
         end tell
     end tell
@@ -424,5 +471,5 @@ repeat with _SectionPair in _Sections
 end repeat
 
 display notification ¬
-    (_SectionsProcessed & " Sektionen verarbeitet, " & _SectionsSkipped & " nicht gefunden, " & _TotalEnabled & " Rechte aktiviert.") ¬
+    ((_SectionsProcessed as string) & " Sektionen verarbeitet, " & (_SectionsSkipped as string) & " nicht gefunden, " & (_TotalEnabled as string) & " Rechte aktiviert.") ¬
     with title "Privacy Setup abgeschlossen"
