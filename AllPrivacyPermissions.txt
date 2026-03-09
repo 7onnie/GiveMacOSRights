@@ -1,5 +1,5 @@
 -- ===========================================================
--- AllPrivacyPermissions.applescript v7
+-- AllPrivacyPermissions.applescript v8
 -- Schnell & gezielt: Alle Rechte für alle Apps aktivieren
 -- NUR FÜR TESTSYSTEME
 -- ===========================================================
@@ -221,6 +221,25 @@ on enableCurrentSection(_U, _P)
     set _Enabled to 0
     set _NeedsRetry to true
     set _SkipCount to 0
+
+    -- Pre-Pass: eingeklappte Disclosure-Rows aufklappen (z.B. Automation: tomedo → Finder)
+    tell application "System Events"
+        tell process "System Settings"
+            try
+                set _Outline to outline 1 of scroll area 1 of group 1 of scroll area 1 of group 1 of group 3 of splitter group 1 of group 1 of window 1
+                repeat with _Row in every UI element of _Outline
+                    if class of _Row is row then
+                        try
+                            if value of attribute "AXDisclosed" of _Row is false then
+                                set value of attribute "AXDisclosed" of _Row to true
+                                delay 0.15
+                            end if
+                        end try
+                    end if
+                end repeat
+            end try
+        end tell
+    end tell
 
     repeat while _NeedsRetry
         set _NeedsRetry to false
