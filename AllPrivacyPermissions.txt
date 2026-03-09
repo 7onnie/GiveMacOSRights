@@ -278,6 +278,13 @@ repeat with _SectionName in _TargetSections
         delay _DelayNav
         set _N to enableCurrentSection(_AdminUser, _AdminPass)
         set _TotalEnabled to _TotalEnabled + _N
+        -- Nach jeder Untersektion zurück zur Hauptansicht:
+        -- group 4 (Sidebar) ist nur auf der Hauptansicht verfügbar,
+        -- nach Button-Klick in Untersektion verschwindet sie (error -1719)
+        tell application "System Settings"
+            set the current pane to pane id "com.apple.settings.PrivacySecurity.extension"
+        end tell
+        delay 0.8
     else
         set _SectionsSkipped to _SectionsSkipped + 1
     end if
