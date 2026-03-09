@@ -229,13 +229,13 @@ end clickCheckboxInRow
 -- ║  HAUPTPROGRAMM                                          ║
 -- ╚══════════════════════════════════════════════════════════╝
 
--- Sharing-Pane öffnen
+-- Sharing-Pane öffnen (pane id funktioniert nicht → URL-Scheme)
 tell application "System Settings"
     activate
-    delay 1.5
-    set the current pane to pane id "com.apple.preferences.sharing"
-    delay _DelayNav
+    delay 1.0
 end tell
+do shell script "open 'x-apple.systempreferences:com.apple.preferences.sharing'"
+delay _DelayNav
 
 -- Discovery-Modus
 if _DiscoverMode then
