@@ -19,6 +19,7 @@ property _DelayClick : 0.1      -- Warten nach Klick
 property _DelayAuth : 0.5       -- Warten nach Auth-Dialog
 property _DelayNav : 0.25        -- Warten nach Pane-Wechsel
 property _DelayPanel : 0.125      -- Warten nach Info-Panel/Sheet öffnen
+property _SecAgentDone : false   -- Nach erstem Check kein SecurityAgent mehr prüfen
 
 
 -- ╔══════════════════════════════════════════════════════════╗
@@ -28,40 +29,43 @@ property _DelayPanel : 0.125      -- Warten nach Info-Panel/Sheet öffnen
 on handleAuthDialog(_U, _P)
     delay 0.3
 
-    tell application "System Events"
-        if exists process "SecurityAgent" then
-            tell process "SecurityAgent"
-                try
-                    repeat with _W in every window
-                        set _F to every text field of _W
-                        if (count of _F) > 0 then
-                            if (count of _F) >= 2 then
-                                set value of text field 1 to _U
-                                delay 0.15
-                                set value of text field 2 to _P
-                            else
-                                set value of text field 1 to _P
-                            end if
-                            delay 0.2
-                            key code 36
-                            return true
-                        else
-                            repeat with _Btn in every button of _W
-                                set _BN to name of _Btn
-                                if _BN is not missing value then
-                                    if _BN is not in {"Abbrechen", "Cancel", "Nicht erlauben", "Don't Allow", "Deny", "Ablehnen", "Beenden & erneut öffnen"} then
-                                        click _Btn
-                                        delay 0.3
-                                        return true
-                                    end if
+    if not _SecAgentDone then
+        set _SecAgentDone to true
+        tell application "System Events"
+            if exists process "SecurityAgent" then
+                tell process "SecurityAgent"
+                    try
+                        repeat with _W in every window
+                            set _F to every text field of _W
+                            if (count of _F) > 0 then
+                                if (count of _F) >= 2 then
+                                    set value of text field 1 to _U
+                                    delay 0.15
+                                    set value of text field 2 to _P
+                                else
+                                    set value of text field 1 to _P
                                 end if
-                            end repeat
-                        end if
-                    end repeat
-                end try
-            end tell
-        end if
-    end tell
+                                delay 0.2
+                                key code 36
+                                return true
+                            else
+                                repeat with _Btn in every button of _W
+                                    set _BN to name of _Btn
+                                    if _BN is not missing value then
+                                        if _BN is not in {"Abbrechen", "Cancel", "Nicht erlauben", "Don't Allow", "Deny", "Ablehnen", "Beenden & erneut öffnen"} then
+                                            click _Btn
+                                            delay 0.3
+                                            return true
+                                        end if
+                                    end if
+                                end repeat
+                            end if
+                        end repeat
+                    end try
+                end tell
+            end if
+        end tell
+    end if
 
     tell application "System Events"
         if exists process "System Settings" then
