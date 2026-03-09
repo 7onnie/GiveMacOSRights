@@ -304,13 +304,21 @@ tell application "System Events"
     end tell
 end tell
 
--- ── 1. Haupt-Toggles aktivieren ──────────────────────────
+-- ── 1. Reactivate: erst alles deaktivieren ───────────────
+if _Mode is "Reactivate" then
+    setMainToggle("Skriptfernsteuerung für AppsToggle", 0, _SubSA)
+    setMainToggle("Entfernte AnmeldungToggle", 0, _SubSA)
+    setMainToggle("Entfernte VerwaltungToggle", 0, _SubSA)
+    delay 1.0
+end if
+
+-- ── 2. Haupt-Toggles aktivieren ──────────────────────────
 setMainToggle("Entfernte VerwaltungToggle", 1, _SubSA)
 setMainToggle("Entfernte AnmeldungToggle", 1, _SubSA)
 setMainToggle("Skriptfernsteuerung für AppsToggle", 1, _SubSA)
 
--- ── 2. Sub-Optionen (nur im Activate-Modus) ──────────────
-if _Mode is "Activate" then
+-- ── 3. Sub-Optionen (beide Modi) ─────────────────────────
+if _Mode is "Activate" or _Mode is "Reactivate" then
 
     -- ── 2a. Entfernte Verwaltung – Info-Panel ─────────────
     clickInfoButton("Entfernte VerwaltungToggle.infoButton", _SubSA)
