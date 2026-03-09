@@ -228,8 +228,8 @@ end closeSheet
 
 -- ╔══════════════════════════════════════════════════════════╗
 -- ║  HANDLER: Alle Optionen-Checkboxen setzen               ║
--- ║  Scannt SA → Gruppen / Outline-Rows im Optionen-Sheet   ║
--- ║  Schließt das innere Optionen-Sheet nach Bearbeitung    ║
+-- ║  Pfad: group 1 of SA 1 of group 1 of Optionen-Sheet     ║
+-- ║  Schließt das innere Optionen-Sheet mit key code 36     ║
 -- ╚══════════════════════════════════════════════════════════╝
 
 on setAllInOptionen(_TargetVal)
@@ -245,113 +245,17 @@ on setAllInOptionen(_TargetVal)
                 end if
 
                 if _Sh is not missing value then
-                    -- Direkte Checkboxen im Sheet
-                    repeat with _CB in every checkbox of _Sh
+                    -- Checkboxen: bekannter Pfad group 1 of SA 1 of group 1
+                    set _CBArea to group 1 of scroll area 1 of group 1 of _Sh
+                    repeat with _CB in every checkbox of _CBArea
                         if value of _CB is not _TargetVal then
                             click _CB
                             delay _DelayClick
                         end if
                     end repeat
-
-                    -- Gruppen im Sheet
-                    repeat with _Grp in every group of _Sh
-                        -- Direkte Checkboxen in Gruppe
-                        repeat with _CB in every checkbox of _Grp
-                            if value of _CB is not _TargetVal then
-                                click _CB
-                                delay _DelayClick
-                            end if
-                        end repeat
-
-                        -- Scroll Areas in Gruppe
-                        repeat with _SA in every scroll area of _Grp
-                            -- Direkte Checkboxen in SA
-                            repeat with _CB in every checkbox of _SA
-                                if value of _CB is not _TargetVal then
-                                    click _CB
-                                    delay _DelayClick
-                                end if
-                            end repeat
-
-                            -- Outline in SA → Rows → Checkboxen
-                            try
-                                set _OLs to every outline of _SA
-                                repeat with _OL in _OLs
-                                    set _Rows to every row of _OL
-                                    repeat with _Row in _Rows
-                                        -- Checkboxen direkt in Row
-                                        repeat with _CB in every checkbox of _Row
-                                            if value of _CB is not _TargetVal then
-                                                click _CB
-                                                delay _DelayClick
-                                            end if
-                                        end repeat
-                                        -- UI-Elemente in Row (eine Ebene tiefer)
-                                        repeat with _El in every UI element of _Row
-                                            if class of _El is checkbox then
-                                                if value of _El is not _TargetVal then
-                                                    click _El
-                                                    delay _DelayClick
-                                                end if
-                                            end if
-                                        end repeat
-                                    end repeat
-                                end repeat
-                            end try
-
-                            -- Gruppen in SA
-                            repeat with _G2 in every group of _SA
-                                repeat with _CB in every checkbox of _G2
-                                    if value of _CB is not _TargetVal then
-                                        click _CB
-                                        delay _DelayClick
-                                    end if
-                                end repeat
-                            end repeat
-                        end repeat
-                    end repeat
-
-                    -- Optionen-Sheet schließen: zuerst Button in Gruppen suchen
-                    set _Closed to false
-                    repeat with _Grp in every group of _Sh
-                        if _Closed then
-                            exit repeat
-                        end if
-                        repeat with _Btn in every button of _Grp
-                            try
-                                set _BN to name of _Btn
-                                if _BN is not missing value then
-                                    if _BN is not in {"Abbrechen", "Cancel", "Hilfe"} then
-                                        click _Btn
-                                        set _Closed to true
-                                        delay 0.5
-                                        exit repeat
-                                    end if
-                                end if
-                            end try
-                        end repeat
-                    end repeat
-                    -- Dann direkte Buttons im Sheet
-                    if not _Closed then
-                        repeat with _Btn in every button of _Sh
-                            try
-                                set _BN to name of _Btn
-                                if _BN is not missing value then
-                                    if _BN is not in {"Abbrechen", "Cancel", "Hilfe"} then
-                                        click _Btn
-                                        set _Closed to true
-                                        delay 0.5
-                                        exit repeat
-                                    end if
-                                end if
-                            end try
-                        end repeat
-                    end if
-                    -- Fallback: Return-Taste
-                    if not _Closed then
-                        key code 36
-                        delay 0.5
-                    end if
+                    -- Optionen-Sheet schließen (Buttons haben name=missing value → key code 36)
+                    key code 36
+                    delay 0.5
                 end if
             end try
         end tell
