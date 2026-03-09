@@ -125,75 +125,76 @@ on discoverUI(_LogPath)
     set _Log to "=== ManageARD Discovery Log ===" & linefeed
     set _Log to _Log & "Datum: " & (current date as string) & linefeed & linefeed
 
+    -- Schritt 1: Top-Level-Struktur des Fensters
     tell application "System Events"
         tell process "System Settings"
             try
-                set _Win to window 1
-                set _Log to _Log & "=== WINDOW 1 ===" & linefeed
-
-                -- Splitter → Gruppen
-                set _Splitter to splitter group 1 of group 1 of _Win
-                set _Log to _Log & "Splitter groups: " & (count of every group of _Splitter) & linefeed & linefeed
-
-                -- Rechter Bereich (Content)
-                set _ContentGroup to group 2 of _Splitter
-                set _Log to _Log & "Content group children: " & (count of every UI element of _ContentGroup) & linefeed
-
-                -- Alle Elemente im Content-Bereich
-                set _Depth to 0
-                my logElement(_ContentGroup, 0, _Log)
-
+                set _Splitter to splitter group 1 of group 1 of window 1
+                set _GCount to count of every group of _Splitter
+                set _Log to _Log & "Splitter-Groups: " & _GCount & linefeed
+                repeat with _GIdx from 1 to _GCount
+                    set _G to group _GIdx of _Splitter
+                    set _Log to _Log & "  Group " & _GIdx & ": " & (count of every UI element of _G) & " Kinder" & linefeed
+                end repeat
             on error _Err
-                set _Log to _Log & "ERROR: " & _Err & linefeed
+                set _Log to _Log & "Splitter-Fehler: " & _Err & linefeed
             end try
         end tell
     end tell
 
-    -- Flacher Scan aller Rows im Outline (falls vorhanden)
-    set _Log to _Log & linefeed & "=== OUTLINE ROWS ===" & linefeed
+    -- Schritt 2: Alle Rows in allen Outlines durchsuchen
+    set _Log to _Log & linefeed & "=== ROWS IN OUTLINES ===" & linefeed
     tell application "System Events"
         tell process "System Settings"
             try
-                -- Outline suchen
-                set _AllOutlines to every outline of (first scroll area of (first group of (first scroll area of (first group of (first group of (splitter group 1 of (group 1 of window 1))))))
-                set _Log to _Log & "Outlines gefunden: " & (count of _AllOutlines) & linefeed
-                if (count of _AllOutlines) > 0 then
-                    set _OL to item 1 of _AllOutlines
-                    set _RowIdx to 0
-                    repeat with _Row in every UI element of _OL
-                        if class of _Row is row then
-                            set _RowIdx to _RowIdx + 1
-                            set _Log to _Log & linefeed & "--- Row " & _RowIdx & " ---" & linefeed
+                set _Splitter to splitter group 1 of group 1 of window 1
+                set _GCount to count of every group of _Splitter
+                repeat with _GIdx from 1 to _GCount
+                    try
+                        set _G to group _GIdx of _Splitter
+                        set _AllSA to every scroll area of _G
+                        repeat with _SA in _AllSA
                             try
-                                set _Log to _Log & "  AXIdentifier: " & (value of attribute "AXIdentifier" of _Row) & linefeed
+                                set _AllOL to every outline of _SA
+                                repeat with _OL in _AllOL
+                                    set _RowIdx to 0
+                                    repeat with _Row in every UI element of _OL
+                                        if class of _Row is row then
+                                            set _RowIdx to _RowIdx + 1
+                                            set _Log to _Log & linefeed & "--- G" & _GIdx & " Row " & _RowIdx & " ---" & linefeed
+                                            try
+                                                set _Log to _Log & "  AXIdentifier: " & (value of attribute "AXIdentifier" of _Row) & linefeed
+                                            end try
+                                            try
+                                                set _Log to _Log & "  AXLabel:      " & (value of attribute "AXLabel" of _Row) & linefeed
+                                            end try
+                                            try
+                                                set _Log to _Log & "  AXDisclosing: " & (value of attribute "AXDisclosing" of _Row) & linefeed
+                                            end try
+                                            set _CIdx to 0
+                                            repeat with _C in every UI element of _Row
+                                                set _CIdx to _CIdx + 1
+                                                set _Log to _Log & "  Child " & _CIdx & ": class=" & (class of _C as string)
+                                                try
+                                                    set _Log to _Log & "  title=" & (title of _C)
+                                                end try
+                                                try
+                                                    set _Log to _Log & "  value=" & (value of _C as string)
+                                                end try
+                                                try
+                                                    set _Log to _Log & "  AXId=" & (value of attribute "AXIdentifier" of _C)
+                                                end try
+                                                set _Log to _Log & linefeed
+                                            end repeat
+                                        end if
+                                    end repeat
+                                end repeat
                             end try
-                            try
-                                set _Log to _Log & "  AXLabel:      " & (value of attribute "AXLabel" of _Row) & linefeed
-                            end try
-                            try
-                                set _Log to _Log & "  AXDisclosing: " & (value of attribute "AXDisclosing" of _Row) & linefeed
-                            end try
-                            -- Alle direkten Kinder
-                            set _CIdx to 0
-                            repeat with _C in every UI element of _Row
-                                set _CIdx to _CIdx + 1
-                                set _Log to _Log & "  Child " & _CIdx & ": class=" & (class of _C as string)
-                                try
-                                    set _Log to _Log & "  title=" & (title of _C)
-                                end try
-                                try
-                                    set _Log to _Log & "  value=" & (value of _C as string)
-                                end try
-                                try
-                                    set _Log to _Log & "  AXId=" & (value of attribute "AXIdentifier" of _C)
-                                end try
-                                set _Log to _Log & linefeed
-                            end repeat
-                        end if
-                    end repeat
-                end if
+                        end repeat
+                    end try
+                end repeat
             on error _Err2
-                set _Log to _Log & "Outline-Fehler: " & _Err2 & linefeed
+                set _Log to _Log & "Scan-Fehler: " & _Err2 & linefeed
             end try
         end tell
     end tell
@@ -212,12 +213,6 @@ on discoverUI(_LogPath)
 
     return _Log
 end discoverUI
-
--- Hilfsfunktion: Rekursiv Elemente loggen (max 3 Ebenen)
-on logElement(_El, _Depth, _LogRef)
-    -- Wird im Discovery-Mode nicht rekursiv aufgerufen (zu viel Output)
-    -- Nur Top-Level-Scan
-end logElement
 
 
 -- ╔══════════════════════════════════════════════════════════╗
