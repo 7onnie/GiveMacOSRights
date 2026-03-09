@@ -1,5 +1,5 @@
 -- ===========================================================
--- ManageARD.applescript v4
+-- ManageARD.applescript v5
 -- Entfernte Verwaltung, Anmeldung & Scriptsteuerung konfigurieren
 -- NUR FÜR TESTSYSTEME
 -- ===========================================================
@@ -227,12 +227,12 @@ end closeSheet
 
 
 -- ╔══════════════════════════════════════════════════════════╗
--- ║  HANDLER: Alle Optionen-Checkboxen setzen               ║
+-- ║  HANDLER: Optionen-Checkboxen setzen (Sheet bleibt offen)║
 -- ║  Pfad: group 1 of SA 1 of group 1 of Optionen-Sheet     ║
--- ║  Schließt das innere Optionen-Sheet mit key code 36     ║
+-- ║  Schließen erfolgt inline per key code 36               ║
 -- ╚══════════════════════════════════════════════════════════╝
 
-on setAllInOptionen(_TargetVal)
+on setCheckboxesInOptionen(_TargetVal)
     tell application "System Events"
         tell process "System Settings"
             try
@@ -253,14 +253,11 @@ on setAllInOptionen(_TargetVal)
                             delay _DelayClick
                         end if
                     end repeat
-                    -- Optionen-Sheet schließen (Buttons haben name=missing value → key code 36)
-                    key code 36
-                    delay 0.5
                 end if
             end try
         end tell
     end tell
-end setAllInOptionen
+end setCheckboxesInOptionen
 
 
 -- ╔══════════════════════════════════════════════════════════╗
@@ -302,27 +299,19 @@ setMainToggle("Skriptfernsteuerung für AppsToggle", 1, _SubSA)
 clickInfoButton("Entfernte VerwaltungToggle.infoButton", _SubSA)
 delay _DelayPanel
 
--- Reactivate: Sub-Checkboxen zuerst auf AN setzen, dann Optionen deaktivieren (cycle)
+-- Reactivate: Sub-Checkboxen zuerst auf AN setzen (cycle)
 if _Mode is "Reactivate" then
     setSheetCheckbox("AlwaysShowInMenuToggle", 1)
     setSheetCheckbox("PublicScreenControlToggle", 1)
     setSheetCheckbox("VNCControlScreenToggle", 1)
-    tell application "System Events"
-        tell process "System Settings"
-            try
-                click button 1 of scroll area 1 of group 1 of sheet 1 of window 1
-            end try
-        end tell
-    end tell
-    delay _DelayPanel
-    setAllInOptionen(0)
-    delay 0.3
 end if
 
 -- SOLL-Werte setzen (beide Modi)
 setSheetCheckbox("AlwaysShowInMenuToggle", 0)      -- Status in Menüleiste: AUS
 setSheetCheckbox("PublicScreenControlToggle", 0)   -- Genehmigung anfordern: AUS
 setSheetCheckbox("VNCControlScreenToggle", 0)      -- VNC mit Passwort: AUS
+
+-- Optionen einmal öffnen
 tell application "System Events"
     tell process "System Settings"
         try
@@ -331,43 +320,43 @@ tell application "System Events"
     end tell
 end tell
 delay _DelayPanel
-setAllInOptionen(1)
-delay 0.3
+
+-- Reactivate: erst deaktivieren, dann aktivieren (cycle, Sheet bleibt offen)
+if _Mode is "Reactivate" then
+    setCheckboxesInOptionen(0)
+end if
+setCheckboxesInOptionen(1)
+
+-- Optionen-Sheet schließen (Buttons haben name=missing value → key code 36)
+tell application "System Events"
+    tell process "System Settings"
+        key code 36
+        delay 0.5
+    end tell
+end tell
 
 -- Verwaltung-Sheet schließen
 closeSheet()
 delay 0.5
 
 -- ── 4. Entfernte Anmeldung – Info-Panel ──────────────────
-
--- Reactivate: FDA zuerst deaktivieren (cycle)
-if _Mode is "Reactivate" then
-    clickInfoButton("Entfernte AnmeldungToggle.infoButton", _SubSA)
-    delay _DelayPanel
-    tell application "System Events"
-        tell process "System Settings"
-            try
-                set _FDACb to checkbox 1 of group 2 of scroll area 1 of group 1 of sheet 1 of window 1
-                if value of _FDACb is 1 then
-                    click _FDACb
-                    delay _DelayClick
-                    my handleAuthDialog(_AdminUser, _AdminPass)
-                    delay _DelayAuth
-                end if
-            end try
-        end tell
-    end tell
-    closeSheet()
-    delay 0.5
-end if
-
--- FDA aktivieren (beide Modi)
+-- Einmal öffnen; Reactivate: FDA erst deaktivieren, dann aktivieren
 clickInfoButton("Entfernte AnmeldungToggle.infoButton", _SubSA)
 delay _DelayPanel
 tell application "System Events"
     tell process "System Settings"
         try
             set _FDACb to checkbox 1 of group 2 of scroll area 1 of group 1 of sheet 1 of window 1
+            if _Mode is "Reactivate" then
+                -- Cycle: erst deaktivieren wenn aktiv
+                if value of _FDACb is 1 then
+                    click _FDACb
+                    delay _DelayClick
+                    my handleAuthDialog(_AdminUser, _AdminPass)
+                    delay _DelayAuth
+                end if
+            end if
+            -- Aktivieren wenn deaktiviert (beide Modi)
             if value of _FDACb is 0 then
                 click _FDACb
                 delay _DelayClick
