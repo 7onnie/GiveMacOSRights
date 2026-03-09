@@ -142,7 +142,78 @@ on discoverUI(_LogPath)
         end tell
     end tell
 
-    -- Schritt 2: Content-Pane tief durchsuchen (group 2 + 3, inkl. Subgroups)
+    -- Schritt 2: Sharing-Content gezielt scannen (G3 → Subgroup → ScrollArea → 8 Elemente)
+    set _Log to _Log & linefeed & "=== SHARING CONTENT (G3 → SubSA → UI Elements) ===" & linefeed
+    tell application "System Events"
+        tell process "System Settings"
+            try
+                set _Splitter to splitter group 1 of group 1 of window 1
+                set _SubSA to scroll area 1 of group 1 of group 3 of _Splitter
+                set _ECount to count of every UI element of _SubSA
+                set _Log to _Log & "UI-Elemente in SubSA: " & _ECount & linefeed
+                set _EIdx to 0
+                repeat with _El in every UI element of _SubSA
+                    set _EIdx to _EIdx + 1
+                    set _Log to _Log & linefeed & "=== Element " & _EIdx & " ===" & linefeed
+                    set _Log to _Log & "  class=" & (class of _El as string) & linefeed
+                    try
+                        set _Log to _Log & "  title=" & (title of _El) & linefeed
+                    end try
+                    try
+                        set _Log to _Log & "  value=" & (value of _El as string) & linefeed
+                    end try
+                    try
+                        set _Log to _Log & "  desc=" & (value of attribute "AXDescription" of _El) & linefeed
+                    end try
+                    try
+                        set _Log to _Log & "  AXId=" & (value of attribute "AXIdentifier" of _El) & linefeed
+                    end try
+                    -- Kinder
+                    set _KIdx to 0
+                    repeat with _K in every UI element of _El
+                        set _KIdx to _KIdx + 1
+                        set _Log to _Log & "  K[" & _KIdx & "]: class=" & (class of _K as string)
+                        try
+                            set _Log to _Log & " title=" & (title of _K)
+                        end try
+                        try
+                            set _Log to _Log & " value=" & (value of _K as string)
+                        end try
+                        try
+                            set _Log to _Log & " desc=" & (value of attribute "AXDescription" of _K)
+                        end try
+                        try
+                            set _Log to _Log & " AXId=" & (value of attribute "AXIdentifier" of _K)
+                        end try
+                        set _Log to _Log & linefeed
+                        -- Enkel
+                        set _EKIdx to 0
+                        repeat with _EK in every UI element of _K
+                            set _EKIdx to _EKIdx + 1
+                            set _Log to _Log & "    EK[" & _EKIdx & "]: class=" & (class of _EK as string)
+                            try
+                                set _Log to _Log & " title=" & (title of _EK)
+                            end try
+                            try
+                                set _Log to _Log & " value=" & (value of _EK as string)
+                            end try
+                            try
+                                set _Log to _Log & " desc=" & (value of attribute "AXDescription" of _EK)
+                            end try
+                            try
+                                set _Log to _Log & " AXId=" & (value of attribute "AXIdentifier" of _EK)
+                            end try
+                            set _Log to _Log & linefeed
+                        end repeat
+                    end repeat
+                end repeat
+            on error _ErrC
+                set _Log to _Log & "SharingContent-Fehler: " & _ErrC & linefeed
+            end try
+        end tell
+    end tell
+
+    -- Schritt 2b: Content-Pane grob durchsuchen (group 2 + 3, inkl. Subgroups)
     set _Log to _Log & linefeed & "=== CONTENT PANE (G2/G3, tief) ===" & linefeed
     tell application "System Events"
         tell process "System Settings"
