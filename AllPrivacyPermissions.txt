@@ -12,7 +12,7 @@ property _AdminUser : "praxis"
 property _AdminPass : "praxis"
 
 property _DelayNav : 1.0       -- Warten nach Sektions-Klick (Ladezeit)
-property _DelayClick : 0.2     -- Warten nach Checkbox-Klick
+property _DelayClick : 0.1     -- Warten nach Checkbox-Klick
 property _DelayAuth : 0.3      -- Warten nach Auth-Dialog
 property _PwDone : false       -- Wird true nach erster Passwort-Eingabe
 
@@ -47,6 +47,7 @@ on handleAuthDialog(_U, _P)
     -- ── Fall 1: SecurityAgent (Schloss-Dialog) ──────────────
     -- Nur prüfen, solange Passwort noch nicht eingegeben wurde
     if not _PwDone then
+        set _PwDone to true
         tell application "System Events"
             if exists process "SecurityAgent" then
                 tell process "SecurityAgent"
@@ -144,8 +145,6 @@ end handleAuthDialog
 
 on navigateBack(_U, _P)
     my handleAuthDialog(_U, _P)
-    -- Passwort-Flag setzen (Einstellungen bleiben für diese Session entsperrt)
-    set _PwDone to true
     delay 0.3
     tell application "System Settings"
         try
@@ -276,8 +275,9 @@ on enableCurrentSection(_U, _P)
                                             click _C1
                                             delay _DelayClick
                                             if value of _C1 is 0 then
-                                                my handleAuthDialog(_U, _P)
-                                                delay _DelayAuth
+                                                if my handleAuthDialog(_U, _P) then
+                                                    delay _DelayAuth
+                                                end if
                                                 if value of _C1 is 0 then
                                                     set _NeedsRetry to true
                                                     set _SkipCount to _SkipCount + 1
@@ -304,8 +304,9 @@ on enableCurrentSection(_U, _P)
                                                     click _C2
                                                     delay _DelayClick
                                                     if value of _C2 is 0 then
-                                                        my handleAuthDialog(_U, _P)
-                                                        delay _DelayAuth
+                                                        if my handleAuthDialog(_U, _P) then
+                                                            delay _DelayAuth
+                                                        end if
                                                         if value of _C2 is 0 then
                                                             set _NeedsRetry to true
                                                             set _SkipCount to _SkipCount + 1
@@ -331,8 +332,9 @@ on enableCurrentSection(_U, _P)
                                                             click _C3
                                                             delay _DelayClick
                                                             if value of _C3 is 0 then
-                                                                my handleAuthDialog(_U, _P)
-                                                                delay _DelayAuth
+                                                                if my handleAuthDialog(_U, _P) then
+                                                                    delay _DelayAuth
+                                                                end if
                                                                 if value of _C3 is 0 then
                                                                     set _NeedsRetry to true
                                                                     set _SkipCount to _SkipCount + 1
