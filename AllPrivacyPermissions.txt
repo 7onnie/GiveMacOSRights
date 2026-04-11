@@ -1,5 +1,5 @@
 -- ===========================================================
--- AllPrivacyPermissions.applescript v12
+-- AllPrivacyPermissions.applescript v13
 -- Schnell & gezielt: Alle Rechte für alle Apps aktivieren
 -- NUR FÜR TESTSYSTEME
 -- ===========================================================
@@ -14,7 +14,6 @@ property _AdminPass : "praxis"
 property _DelayNav : 1.0       -- Warten nach Sektions-Klick (Ladezeit)
 property _DelayClick : 0.1     -- Warten nach Checkbox-Klick
 property _DelayAuth : 0.3      -- Warten nach Auth-Dialog
-property _PwDone : false       -- Wird true nach erster Passwort-Eingabe
 
 -- Ziel-Sektionen: exakte deutsche AXIdentifier ohne "_Navigator"-Suffix.
 -- "Vollständiger Festplattenzugriff" ist NICHT in der Sidebar –
@@ -37,52 +36,50 @@ property _TargetSections : {¬
 
 -- ╔══════════════════════════════════════════════════════════╗
 -- ║  HANDLER: Auth- UND Bestätigungs-Dialoge behandeln      ║
--- ║  Passwort-Abfrage: nur beim ersten Mal (SecurityAgent   ║
--- ║  und System-Settings-Sheet); danach nur Bestätigungen   ║
+-- ║  SecurityAgent: bei jeder Section prüfen (jede Section  ║
+-- ║  kann einen eigenen Auth-Dialog auslösen, z.B. Remote   ║
+-- ║  Desktop). System-Settings-Sheet: immer prüfen.         ║
 -- ╚══════════════════════════════════════════════════════════╝
 
 on handleAuthDialog(_U, _P)
     delay 0.3
 
     -- ── Fall 1: SecurityAgent (Schloss-Dialog) ──────────────
-    -- Nur prüfen, solange Passwort noch nicht eingegeben wurde
-    if not _PwDone then
-        set _PwDone to true
-        tell application "System Events"
-            if exists process "SecurityAgent" then
-                tell process "SecurityAgent"
-                    try
-                        repeat with _W in every window
-                            set _F to every text field of _W
-                            if (count of _F) > 0 then
-                                if (count of _F) >= 2 then
-                                    set value of text field 1 to _U
-                                    delay 0.15
-                                    set value of text field 2 to _P
-                                else
-                                    set value of text field 1 to _P
-                                end if
-                                delay 0.2
-                                key code 36 -- Return
-                                return true
+    -- Jede Section kann einen eigenen SecurityAgent-Dialog auslösen
+    tell application "System Events"
+        if exists process "SecurityAgent" then
+            tell process "SecurityAgent"
+                try
+                    repeat with _W in every window
+                        set _F to every text field of _W
+                        if (count of _F) > 0 then
+                            if (count of _F) >= 2 then
+                                set value of text field 1 to _U
+                                delay 0.15
+                                set value of text field 2 to _P
                             else
-                                repeat with _Btn in every button of _W
-                                    set _BN to name of _Btn
-                                    if _BN is not missing value then
-                                        if _BN is not in {"Abbrechen", "Cancel", "Nicht erlauben", "Don't Allow", "Deny", "Ablehnen", "Beenden & erneut öffnen"} then
-                                            click _Btn
-                                            delay 0.3
-                                            return true
-                                        end if
-                                    end if
-                                end repeat
+                                set value of text field 1 to _P
                             end if
-                        end repeat
-                    end try
-                end tell
-            end if
-        end tell
-    end if
+                            delay 0.2
+                            key code 36 -- Return
+                            return true
+                        else
+                            repeat with _Btn in every button of _W
+                                set _BN to name of _Btn
+                                if _BN is not missing value then
+                                    if _BN is not in {"Abbrechen", "Cancel", "Nicht erlauben", "Don't Allow", "Deny", "Ablehnen", "Beenden & erneut öffnen"} then
+                                        click _Btn
+                                        delay 0.3
+                                        return true
+                                    end if
+                                end if
+                            end repeat
+                        end if
+                    end repeat
+                end try
+            end tell
+        end if
+    end tell
 
     -- ── Fall 2: Sheet in System Settings ────────────────────
     tell application "System Events"
