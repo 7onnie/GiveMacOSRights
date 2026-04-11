@@ -1,5 +1,5 @@
 -- ===========================================================
--- AllPrivacyPermissions.applescript v13
+-- AllPrivacyPermissions.applescript v14
 -- Schnell & gezielt: Alle Rechte für alle Apps aktivieren
 -- NUR FÜR TESTSYSTEME
 -- ===========================================================
@@ -359,6 +359,38 @@ on enableCurrentSection(_U, _P)
             end tell
         end tell
     end repeat
+
+    -- Fallback: Flat-Group-Struktur (macOS 26: Remote Desktop hat kein outline)
+    -- SA1 enthält direkt eine group mit Checkboxen statt einer verschachtelten SA+outline
+    tell application "System Events"
+        tell process "System Settings"
+            try
+                set _SA1 to scroll area 1 of group 1 of group 3 of splitter group 1 of group 1 of window 1
+                repeat with _FEl in every UI element of _SA1
+                    if class of _FEl is group then
+                        repeat with _FC in every UI element of _FEl
+                            if class of _FC is checkbox then
+                                try
+                                    if value of _FC is 0 then
+                                        click _FC
+                                        delay _DelayClick
+                                        if value of _FC is 0 then
+                                            if my handleAuthDialog(_U, _P) then
+                                                delay _DelayAuth
+                                            end if
+                                        end if
+                                        if value of _FC is 1 then
+                                            set _Enabled to _Enabled + 1
+                                        end if
+                                    end if
+                                end try
+                            end if
+                        end repeat
+                    end if
+                end repeat
+            end try
+        end tell
+    end tell
 
     return _Enabled
 end enableCurrentSection
