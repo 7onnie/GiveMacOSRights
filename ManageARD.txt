@@ -171,6 +171,13 @@ on setSheetCheckbox(_AXId, _TargetVal)
                                 if value of _CB is not _TargetVal then
                                     click _CB
                                     delay _DelayClick
+                                    -- Sequoia: VNC-Passwort-Sheet abbrechen
+                                    try
+                                        if (count of sheets of sheet 1 of window 1) > 0 then
+                                            key code 53
+                                            delay 0.2
+                                        end if
+                                    end try
                                 end if
                                 return true
                             end if
