@@ -169,7 +169,19 @@ on clickNavSection(_SectionName)
     tell application "System Events"
         tell process "System Settings"
             try
-                set _NavGroup to group 4 of scroll area 1 of group 1 of group 3 of splitter group 1 of group 1 of window 1
+                -- group 3 (Sonoma/Tahoe) oder group 2 (Sequoia) Fallback
+                set _CG to missing value
+                try
+                    set _CG to group 3 of splitter group 1 of group 1 of window 1
+                end try
+                if _CG is missing value then
+                    try
+                        set _CG to group 2 of splitter group 1 of group 1 of window 1
+                    end try
+                end if
+                if _CG is missing value then error "Content group nicht gefunden"
+
+                set _NavGroup to group 4 of scroll area 1 of group 1 of _CG
 
                 -- Pass 1: aktuell sichtbare Buttons
                 repeat with _E in every UI element of _NavGroup
@@ -185,10 +197,10 @@ on clickNavSection(_SectionName)
 
                 -- Pass 2: Sidebar nach unten scrollen
                 try
-                    set _SA to scroll area 1 of group 1 of group 3 of splitter group 1 of group 1 of window 1
+                    set _SA to scroll area 1 of group 1 of _CG
                     set value of scroll bar 1 of _SA to 1.0
                     delay 0.5
-                    set _NavGroup2 to group 4 of scroll area 1 of group 1 of group 3 of splitter group 1 of group 1 of window 1
+                    set _NavGroup2 to group 4 of scroll area 1 of group 1 of _CG
                     repeat with _E in every UI element of _NavGroup2
                         if class of _E is button then
                             try
@@ -222,12 +234,21 @@ on enableCurrentSection(_U, _P)
     -- Stoppt wenn sich die Zahl der Outline-Elemente nicht mehr erhöht (Leaf-Rows ignoriert).
     tell application "System Events"
         tell process "System Settings"
+            set _CG to missing value
+            try
+                set _CG to group 3 of splitter group 1 of group 1 of window 1
+            end try
+            if _CG is missing value then
+                try
+                    set _CG to group 2 of splitter group 1 of group 1 of window 1
+                end try
+            end if
             set _PrevCount to -1
             set _KeepExpanding to true
             repeat while _KeepExpanding
                 set _KeepExpanding to false
                 try
-                    set _Outline to outline 1 of scroll area 1 of group 1 of scroll area 1 of group 1 of group 3 of splitter group 1 of group 1 of window 1
+                    set _Outline to outline 1 of scroll area 1 of group 1 of scroll area 1 of group 1 of _CG
                     set _CurrCount to count of every UI element of _Outline
                     if _CurrCount > _PrevCount then
                         set _PrevCount to _CurrCount
@@ -255,7 +276,17 @@ on enableCurrentSection(_U, _P)
         tell application "System Events"
             tell process "System Settings"
                 try
-                    set _Outline to outline 1 of scroll area 1 of group 1 of scroll area 1 of group 1 of group 3 of splitter group 1 of group 1 of window 1
+                    set _CG to missing value
+                    try
+                        set _CG to group 3 of splitter group 1 of group 1 of window 1
+                    end try
+                    if _CG is missing value then
+                        try
+                            set _CG to group 2 of splitter group 1 of group 1 of window 1
+                        end try
+                    end if
+                    if _CG is missing value then error "Content group nicht gefunden"
+                    set _Outline to outline 1 of scroll area 1 of group 1 of scroll area 1 of group 1 of _CG
                     repeat with _Row in every UI element of _Outline
                         if class of _Row is row then
                             set _RowDone to false
@@ -365,7 +396,17 @@ on enableCurrentSection(_U, _P)
     tell application "System Events"
         tell process "System Settings"
             try
-                set _SA1 to scroll area 1 of group 1 of group 3 of splitter group 1 of group 1 of window 1
+                set _CG to missing value
+                try
+                    set _CG to group 3 of splitter group 1 of group 1 of window 1
+                end try
+                if _CG is missing value then
+                    try
+                        set _CG to group 2 of splitter group 1 of group 1 of window 1
+                    end try
+                end if
+                if _CG is missing value then error "Content group nicht gefunden"
+                set _SA1 to scroll area 1 of group 1 of _CG
                 repeat with _FEl in every UI element of _SA1
                     if class of _FEl is group then
                         repeat with _FC in every UI element of _FEl
