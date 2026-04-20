@@ -324,10 +324,11 @@ clickInfoButton("Entfernte VerwaltungToggle.infoButton", _SubSA)
 delay _DelayPanel
 
 -- Reactivate: Sub-Checkboxen zuerst auf AN setzen (cycle)
+-- VNCControlScreenToggle ausgenommen: aktivieren öffnet Passwort-Feld inline
+-- und verändert die UI-Struktur → nachfolgende Checkboxen nicht mehr findbar (Sequoia)
 if _Mode is "Reactivate" then
     setSheetCheckbox("AlwaysShowInMenuToggle", 1)
     setSheetCheckbox("PublicScreenControlToggle", 1)
-    setSheetCheckbox("VNCControlScreenToggle", 1)
 end if
 
 -- SOLL-Werte setzen (beide Modi)
