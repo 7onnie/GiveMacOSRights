@@ -4,15 +4,15 @@
 -- NUR FÜR TESTSYSTEME
 -- ===========================================================
 
--- ╔══════════════════════════════════════════════════════════╗
--- ║  KONFIGURATION                                           ║
--- ╚══════════════════════════════════════════════════════════╝
+-- ###############################
+-- #  KONFIGURATION              #
+-- ###############################
 
 property _AdminUser : "praxis"
 property _AdminPass : "praxis"
 
--- "Activate"   → Ersteinrichtung (alles einschalten inkl. Sub-Optionen)
--- "Reactivate" → Alle Toggles & Sub-Optionen einmal aus und wieder an
+-- "Activate"   -> Ersteinrichtung (alles einschalten inkl. Sub-Optionen)
+-- "Reactivate" -> Alle Toggles & Sub-Optionen einmal aus und wieder an
 property _Mode : "Activate"
 
 property _DelayClick : 0.1      -- Warten nach Klick
@@ -22,9 +22,9 @@ property _DelayPanel : 0.125      -- Warten nach Info-Panel/Sheet öffnen
 property _SecAgentDone : false   -- Nach erstem Check kein SecurityAgent mehr prüfen
 
 
--- ╔══════════════════════════════════════════════════════════╗
--- ║  HANDLER: Auth-Dialog behandeln                         ║
--- ╚══════════════════════════════════════════════════════════╝
+-- ###################################
+-- #  HANDLER: Auth-Dialog behandeln #
+-- ###################################
 
 on handleAuthDialog(_U, _P)
     delay 0.3
@@ -118,10 +118,10 @@ on handleAuthDialog(_U, _P)
 end handleAuthDialog
 
 
--- ╔══════════════════════════════════════════════════════════╗
--- ║  HANDLER: Checkbox per AXId in SubSA setzen             ║
--- ║  Durchsucht alle Groups in der Sharing-ScrollArea       ║
--- ╚══════════════════════════════════════════════════════════╝
+-- #####################################################
+-- #  HANDLER: Checkbox per AXId in SubSA setzen       #
+-- #  Durchsucht alle Groups in der Sharing-ScrollArea #
+-- #####################################################
 
 on setMainToggle(_AXId, _TargetVal, _SubSA)
     tell application "System Events"
@@ -154,10 +154,10 @@ on setMainToggle(_AXId, _TargetVal, _SubSA)
 end setMainToggle
 
 
--- ╔══════════════════════════════════════════════════════════╗
--- ║  HANDLER: Checkbox per AXId im Sheet setzen             ║
--- ║  Durchsucht alle Groups in Sheet-ScrollArea             ║
--- ╚══════════════════════════════════════════════════════════╝
+-- ###############################################
+-- #  HANDLER: Checkbox per AXId im Sheet setzen #
+-- #  Durchsucht alle Groups in Sheet-ScrollArea #
+-- ###############################################
 
 on setSheetCheckbox(_AXId, _TargetVal)
     tell application "System Events"
@@ -184,9 +184,9 @@ on setSheetCheckbox(_AXId, _TargetVal)
 end setSheetCheckbox
 
 
--- ╔══════════════════════════════════════════════════════════╗
--- ║  HANDLER: Info-Button in SubSA klicken                  ║
--- ╚══════════════════════════════════════════════════════════╝
+-- ##########################################
+-- #  HANDLER: Info-Button in SubSA klicken #
+-- ##########################################
 
 on clickInfoButton(_AXId, _SubSA)
     tell application "System Events"
@@ -213,9 +213,9 @@ on clickInfoButton(_AXId, _SubSA)
 end clickInfoButton
 
 
--- ╔══════════════════════════════════════════════════════════╗
--- ║  HANDLER: Sheet schließen (button 2 of group 1 of sheet)║
--- ╚══════════════════════════════════════════════════════════╝
+-- ############################################################
+-- #  HANDLER: Sheet schließen (button 2 of group 1 of sheet) #
+-- ############################################################
 
 on closeSheet()
     tell application "System Events"
@@ -229,11 +229,11 @@ on closeSheet()
 end closeSheet
 
 
--- ╔══════════════════════════════════════════════════════════╗
--- ║  HANDLER: Optionen-Checkboxen setzen (Sheet bleibt offen)║
--- ║  Pfad: group 1 of SA 1 of group 1 of Optionen-Sheet     ║
--- ║  Schließen erfolgt inline per key code 36               ║
--- ╚══════════════════════════════════════════════════════════╝
+-- #############################################################
+-- #  HANDLER: Optionen-Checkboxen setzen (Sheet bleibt offen) #
+-- #  Pfad: group 1 of SA 1 of group 1 of Optionen-Sheet       #
+-- #  Schließen erfolgt inline per key code 36                 #
+-- #############################################################
 
 on setCheckboxesInOptionen(_TargetVal)
     tell application "System Events"
@@ -263,9 +263,9 @@ on setCheckboxesInOptionen(_TargetVal)
 end setCheckboxesInOptionen
 
 
--- ╔══════════════════════════════════════════════════════════╗
--- ║  HAUPTPROGRAMM                                          ║
--- ╚══════════════════════════════════════════════════════════╝
+-- ###############################
+-- #  HAUPTPROGRAMM              #
+-- ###############################
 
 -- Sharing-Pane öffnen
 tell application "System Settings"
@@ -275,17 +275,31 @@ end tell
 do shell script "open 'x-apple.systempreferences:com.apple.preferences.sharing'"
 delay _DelayNav
 
--- Referenz auf Sharing-Content
+-- Referenz auf Sharing-Content (Sonoma: group 3, Sequoia: group 2, Fallback: flach)
 set _SubSA to missing value
 tell application "System Events"
     tell process "System Settings"
         try
             set _SubSA to scroll area 1 of group 1 of group 3 of splitter group 1 of group 1 of window 1
         end try
+        if _SubSA is missing value then
+            try
+                set _SubSA to scroll area 1 of group 1 of group 2 of splitter group 1 of group 1 of window 1
+            end try
+        end if
+        if _SubSA is missing value then
+            try
+                set _SubSA to scroll area 1 of group 1 of window 1
+            end try
+        end if
     end tell
 end tell
+if _SubSA is missing value then
+    display dialog "ManageARD: Sharing-UI nicht gefunden – macOS-Version nicht unterstützt." buttons {"OK"} default button 1
+    error number -128
+end if
 
--- ── 1. Reactivate: erst alles deaktivieren ───────────────
+-- ## 1. Reactivate: erst alles deaktivieren ###############
 if _Mode is "Reactivate" then
     setMainToggle("Skriptfernsteuerung für AppsToggle", 0, _SubSA)
     setMainToggle("Entfernte AnmeldungToggle", 0, _SubSA)
@@ -293,12 +307,12 @@ if _Mode is "Reactivate" then
     delay 1.0
 end if
 
--- ── 2. Haupt-Toggles aktivieren ──────────────────────────
+-- ## 2. Haupt-Toggles aktivieren ##########################
 setMainToggle("Entfernte VerwaltungToggle", 1, _SubSA)
 setMainToggle("Entfernte AnmeldungToggle", 1, _SubSA)
 setMainToggle("Skriptfernsteuerung für AppsToggle", 1, _SubSA)
 
--- ── 3. Entfernte Verwaltung – Info-Panel ─────────────────
+-- ## 3. Entfernte Verwaltung – Info-Panel #################
 clickInfoButton("Entfernte VerwaltungToggle.infoButton", _SubSA)
 delay _DelayPanel
 
@@ -330,7 +344,7 @@ if _Mode is "Reactivate" then
 end if
 setCheckboxesInOptionen(1)
 
--- Optionen-Sheet schließen (Buttons haben name=missing value → key code 36)
+-- Optionen-Sheet schließen (Buttons haben name=missing value -> key code 36)
 tell application "System Events"
     tell process "System Settings"
         key code 36
@@ -342,7 +356,7 @@ end tell
 closeSheet()
 delay 0.5
 
--- ── 4. Entfernte Anmeldung – Info-Panel ──────────────────
+-- ## 4. Entfernte Anmeldung – Info-Panel ##################
 -- Einmal öffnen; Reactivate: FDA erst deaktivieren, dann aktivieren
 clickInfoButton("Entfernte AnmeldungToggle.infoButton", _SubSA)
 delay _DelayPanel
