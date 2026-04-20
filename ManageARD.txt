@@ -43,7 +43,30 @@ on handleAuthDialog(_U, _P)
                                     delay 0.15
                                     set value of text field 2 to _P
                                 else
-                                    set value of text field 1 to _P
+                                    -- 1 Textfeld: vorausgefüllten User prüfen (lokaler Admin ≠ _AdminUser)
+                                    set _PreUser to ""
+                                    try
+                                        repeat with _ST in every static text of _W
+                                            set _STV to value of _ST
+                                            if _STV is not missing value and _STV is not "" then
+                                                set _PreUser to _STV
+                                                exit repeat
+                                            end if
+                                        end repeat
+                                    end try
+                                    if _PreUser is not "" and _PreUser is not _U then
+                                        key code 48 using {shift down}
+                                        delay 0.1
+                                        keystroke "a" using {command down}
+                                        delay 0.05
+                                        keystroke _U
+                                        delay 0.1
+                                        key code 48
+                                        delay 0.1
+                                        keystroke _P
+                                    else
+                                        set value of text field 1 to _P
+                                    end if
                                 end if
                                 delay 0.2
                                 key code 36
@@ -81,7 +104,30 @@ on handleAuthDialog(_U, _P)
                                         delay 0.15
                                         set value of text field 2 to _P
                                     else
-                                        set value of text field 1 to _P
+                                        -- 1 Textfeld: vorausgefüllten User prüfen
+                                        set _PreUser to ""
+                                        try
+                                            repeat with _ST in every static text
+                                                set _STV to value of _ST
+                                                if _STV is not missing value and _STV is not "" then
+                                                    set _PreUser to _STV
+                                                    exit repeat
+                                                end if
+                                            end repeat
+                                        end try
+                                        if _PreUser is not "" and _PreUser is not _U then
+                                            key code 48 using {shift down}
+                                            delay 0.1
+                                            keystroke "a" using {command down}
+                                            delay 0.05
+                                            keystroke _U
+                                            delay 0.1
+                                            key code 48
+                                            delay 0.1
+                                            keystroke _P
+                                        else
+                                            set value of text field 1 to _P
+                                        end if
                                     end if
                                     delay 0.2
                                     key code 36
@@ -335,6 +381,7 @@ end if
 setSheetCheckbox("AlwaysShowInMenuToggle", 0)      -- Status in Menüleiste: AUS
 setSheetCheckbox("PublicScreenControlToggle", 0)   -- Genehmigung anfordern: AUS
 setSheetCheckbox("VNCControlScreenToggle", 0)      -- VNC mit Passwort: AUS
+setSheetCheckbox("CreateReportsToggle", 0)         -- Berichte erstellen: AUS (AXId ggf. prüfen)
 
 -- Optionen einmal öffnen
 tell application "System Events"
