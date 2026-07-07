@@ -63,13 +63,16 @@ on handleAuthDialog(_U, _P)
                                 try
                                     repeat with _ST in every static text of _W
                                         set _STV to value of _ST
-                                        if _STV is not missing value and _STV is not "" then
+                                        if _STV is not missing value and _STV is not "" and _STV does not contain " " and _STV does not contain ":" then
                                             set _PreUser to _STV
                                             exit repeat
                                         end if
                                     end repeat
                                 end try
                                 if _PreUser is not "" and _PreUser is not _U then
+                                    try
+                                        set focused of text field 1 of _W to true
+                                    end try
                                     key code 48 using {shift down}
                                     delay 0.1
                                     keystroke "a" using {command down}
@@ -125,13 +128,16 @@ on handleAuthDialog(_U, _P)
                                         try
                                             repeat with _ST in every static text
                                                 set _STV to value of _ST
-                                                if _STV is not missing value and _STV is not "" then
+                                                if _STV is not missing value and _STV is not "" and _STV does not contain " " and _STV does not contain ":" then
                                                     set _PreUser to _STV
                                                     exit repeat
                                                 end if
                                             end repeat
                                         end try
                                         if _PreUser is not "" and _PreUser is not _U then
+                                            try
+                                                set focused of text field 1 to true
+                                            end try
                                             key code 48 using {shift down}
                                             delay 0.1
                                             keystroke "a" using {command down}
