@@ -35,6 +35,45 @@ property _TargetSections : {¬
 
 
 -- ╔══════════════════════════════════════════════════════════╗
+-- ║  HANDLER: 1-Feld-Auth-Dialog füllen                     ║
+-- ║  Vorausgefüllten User korrigieren (lokaler Admin ≠      ║
+-- ║  _AdminUser); Passwort immer per AX-Value setzen        ║
+-- ║  (idempotent, layout-unabhängig)                        ║
+-- ╚══════════════════════════════════════════════════════════╝
+
+on fillSingleFieldAuth(_U, _P, _Box)
+    tell application "System Events"
+        set _PreUser to ""
+        try
+            set _Vals to value of every static text of _Box
+            repeat with _STV in _Vals
+                if _STV is not missing value then
+                    set _T to _STV as text
+                    if _T is not "" and _T does not contain " " and _T does not contain ":" and _T does not contain "." then
+                        set _PreUser to _T
+                        exit repeat
+                    end if
+                end if
+            end repeat
+        end try
+        if _PreUser is not "" and _PreUser is not _U then
+            -- User-Feld per Shift-Tab erreichen; nur tippen wenn Fokus gesetzt werden konnte
+            try
+                set focused of text field 1 of _Box to true
+                key code 48 using {shift down}
+                delay 0.1
+                keystroke "a" using {command down}
+                delay 0.05
+                keystroke _U
+                delay 0.1
+            end try
+        end if
+        set value of text field 1 of _Box to _P
+    end tell
+end fillSingleFieldAuth
+
+
+-- ╔══════════════════════════════════════════════════════════╗
 -- ║  HANDLER: Auth- UND Bestätigungs-Dialoge behandeln      ║
 -- ║  SecurityAgent: bei jeder Section prüfen (jede Section  ║
 -- ║  kann einen eigenen Auth-Dialog auslösen, z.B. Remote   ║
@@ -58,33 +97,8 @@ on handleAuthDialog(_U, _P)
                                 delay 0.15
                                 set value of text field 2 to _P
                             else
-                                -- 1 Textfeld: vorausgefüllten User prüfen (lokaler Admin ≠ _AdminUser)
-                                set _PreUser to ""
-                                try
-                                    repeat with _ST in every static text of _W
-                                        set _STV to value of _ST
-                                        if _STV is not missing value and _STV is not "" and _STV does not contain " " and _STV does not contain ":" then
-                                            set _PreUser to _STV
-                                            exit repeat
-                                        end if
-                                    end repeat
-                                end try
-                                if _PreUser is not "" and _PreUser is not _U then
-                                    try
-                                        set focused of text field 1 of _W to true
-                                    end try
-                                    key code 48 using {shift down}
-                                    delay 0.1
-                                    keystroke "a" using {command down}
-                                    delay 0.05
-                                    keystroke _U
-                                    delay 0.1
-                                    key code 48
-                                    delay 0.1
-                                    keystroke _P
-                                else
-                                    set value of text field 1 to _P
-                                end if
+                                -- 1 Textfeld: User-Mismatch korrigieren + Passwort setzen
+                                my fillSingleFieldAuth(_U, _P, _W)
                             end if
                             delay 0.2
                             key code 36 -- Return
@@ -123,33 +137,8 @@ on handleAuthDialog(_U, _P)
                                         delay 0.15
                                         set value of text field 2 to _P
                                     else
-                                        -- 1 Textfeld: vorausgefüllten User prüfen
-                                        set _PreUser to ""
-                                        try
-                                            repeat with _ST in every static text
-                                                set _STV to value of _ST
-                                                if _STV is not missing value and _STV is not "" and _STV does not contain " " and _STV does not contain ":" then
-                                                    set _PreUser to _STV
-                                                    exit repeat
-                                                end if
-                                            end repeat
-                                        end try
-                                        if _PreUser is not "" and _PreUser is not _U then
-                                            try
-                                                set focused of text field 1 to true
-                                            end try
-                                            key code 48 using {shift down}
-                                            delay 0.1
-                                            keystroke "a" using {command down}
-                                            delay 0.05
-                                            keystroke _U
-                                            delay 0.1
-                                            key code 48
-                                            delay 0.1
-                                            keystroke _P
-                                        else
-                                            set value of text field 1 to _P
-                                        end if
+                                        -- 1 Textfeld: User-Mismatch korrigieren + Passwort setzen
+                                        my fillSingleFieldAuth(_U, _P, it)
                                     end if
                                     delay 0.2
                                     key code 36 -- Return
