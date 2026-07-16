@@ -1,0 +1,47 @@
+-- ===========================================================
+-- ContentCaching.applescript v1
+-- Inhaltscaching aktivieren und Cache-Limit setzen
+-- Elevation per eingebetteten Admin-Credentials (zero-touch)
+-- NUR FÜR TESTSYSTEME
+-- ===========================================================
+
+-- ###############################
+-- #  KONFIGURATION              #
+-- ###############################
+
+property _AdminUser : "praxis"
+property _AdminPass : "praxis"
+
+-- Cache-Limit in GB (dezimal, 1 GB = 1000^3 Bytes - so zeigt es macOS an)
+-- 50 -> 50000000000 Bytes; System Settings / "AssetCacheManagerUtil settings"
+-- zeigen dann exakt "50 GB"
+property _CacheLimitGB : 50
+
+property _Domain : "/Library/Preferences/com.apple.AssetCache"
+property _AssetUtil : "/usr/bin/AssetCacheManagerUtil"
+property _Defaults : "/usr/bin/defaults"
+
+
+-- ###############################
+-- #  HAUPTPROGRAMM              #
+-- ###############################
+
+-- Byte-Berechnung in der Shell (AppleScript-Integer würde bei 50*1024^3
+-- in Real umschlagen und als "5.36...E+10" formatiert -> defaults bekäme Müll)
+set _Cmd to "set -e; " & ¬
+    "_GB=" & _CacheLimitGB & "; " & ¬
+    "_BYTES=$(( _GB * 1000 * 1000 * 1000 )); " & ¬
+    _AssetUtil & " activate; " & ¬
+    _Defaults & " write " & _Domain & " CacheLimit -int \"$_BYTES\"; " & ¬
+    _Defaults & " write " & _Domain & " Activated -bool YES; " & ¬
+    _AssetUtil & " reloadSettings; " & ¬
+    _AssetUtil & " status"
+
+try
+    set _Result to do shell script _Cmd user name _AdminUser password _AdminPass with administrator privileges
+on error _Err number _Num
+    display dialog "ContentCaching fehlgeschlagen (" & _Num & "):" & return & _Err buttons {"OK"} default button 1
+    error number -128
+end try
+
+display notification "Inhaltscaching aktiv, Limit " & _CacheLimitGB & " GB." with title "ContentCaching"
