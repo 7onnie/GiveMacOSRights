@@ -1,5 +1,5 @@
 -- ===========================================================
--- AllPrivacyPermissions.applescript v19
+-- AllPrivacyPermissions.applescript v20
 -- Schnell & gezielt: Alle Rechte für alle Apps aktivieren
 -- NUR FÜR TESTSYSTEME
 -- ===========================================================
@@ -414,12 +414,22 @@ on enableCurrentSection(_U, _P)
                                                 if my handleAuthDialog(_U, _P) then
                                                     delay _DelayAuth
                                                 end if
-                                                -- Automation-Sonderfall: nach erfolgreicher Auth setzt macOS
-                                                -- den Schieber NICHT automatisch -> ein zweiter Klick aktiviert ihn.
-                                                if value of _C1 is 0 then
-                                                    click _C1
+                                                -- Automation-Sonderfall: nach der Auth ist der Schieber NICHT
+                                                -- automatisch gesetzt. Sheet muss erst schließen + UI settlen,
+                                                -- dann erneut klicken (mehrere Versuche; evtl. weiterer Dialog).
+                                                repeat 3 times
+                                                    if value of _C1 is not 0 then exit repeat
+                                                    delay 0.4
+                                                    try
+                                                        click _C1
+                                                    end try
                                                     delay _DelayClick
-                                                end if
+                                                    if value of _C1 is 0 then
+                                                        if my handleAuthDialog(_U, _P) then
+                                                            delay _DelayAuth
+                                                        end if
+                                                    end if
+                                                end repeat
                                                 if value of _C1 is 0 then
                                                     set _NeedsRetry to true
                                                     set _SkipCount to _SkipCount + 1
@@ -449,12 +459,22 @@ on enableCurrentSection(_U, _P)
                                                         if my handleAuthDialog(_U, _P) then
                                                             delay _DelayAuth
                                                         end if
-                                                        -- Automation-Sonderfall: nach erfolgreicher Auth setzt macOS
-                                                        -- den Schieber NICHT automatisch -> ein zweiter Klick aktiviert ihn.
-                                                        if value of _C2 is 0 then
-                                                            click _C2
+                                                        -- Automation-Sonderfall: nach der Auth ist der Schieber NICHT
+                                                        -- automatisch gesetzt. Sheet muss erst schließen + UI settlen,
+                                                        -- dann erneut klicken (mehrere Versuche; evtl. weiterer Dialog).
+                                                        repeat 3 times
+                                                            if value of _C2 is not 0 then exit repeat
+                                                            delay 0.4
+                                                            try
+                                                                click _C2
+                                                            end try
                                                             delay _DelayClick
-                                                        end if
+                                                            if value of _C2 is 0 then
+                                                                if my handleAuthDialog(_U, _P) then
+                                                                    delay _DelayAuth
+                                                                end if
+                                                            end if
+                                                        end repeat
                                                         if value of _C2 is 0 then
                                                             set _NeedsRetry to true
                                                             set _SkipCount to _SkipCount + 1
@@ -483,12 +503,22 @@ on enableCurrentSection(_U, _P)
                                                                 if my handleAuthDialog(_U, _P) then
                                                                     delay _DelayAuth
                                                                 end if
-                                                                -- Automation-Sonderfall: nach erfolgreicher Auth setzt macOS
-                                                                -- den Schieber NICHT automatisch -> ein zweiter Klick aktiviert ihn.
-                                                                if value of _C3 is 0 then
-                                                                    click _C3
+                                                                -- Automation-Sonderfall: nach der Auth ist der Schieber NICHT
+                                                                -- automatisch gesetzt. Sheet muss erst schließen + UI settlen,
+                                                                -- dann erneut klicken (mehrere Versuche; evtl. weiterer Dialog).
+                                                                repeat 3 times
+                                                                    if value of _C3 is not 0 then exit repeat
+                                                                    delay 0.4
+                                                                    try
+                                                                        click _C3
+                                                                    end try
                                                                     delay _DelayClick
-                                                                end if
+                                                                    if value of _C3 is 0 then
+                                                                        if my handleAuthDialog(_U, _P) then
+                                                                            delay _DelayAuth
+                                                                        end if
+                                                                    end if
+                                                                end repeat
                                                                 if value of _C3 is 0 then
                                                                     set _NeedsRetry to true
                                                                     set _SkipCount to _SkipCount + 1
