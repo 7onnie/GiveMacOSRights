@@ -1,5 +1,5 @@
 -- ===========================================================
--- ManageARD.applescript v9
+-- ManageARD.applescript v10
 -- Entfernte Verwaltung, Anmeldung & Scriptsteuerung konfigurieren
 -- NUR FÜR TESTSYSTEME
 -- ===========================================================
@@ -28,6 +28,11 @@ property _DelayAuth : 0.5       -- Warten nach Auth-Dialog
 property _DelayNav : 0.25        -- Warten nach Pane-Wechsel
 property _DelayPanel : 0.125      -- Warten nach Info-Panel/Sheet öffnen
 property _SecAgentDone : false   -- Nach erstem Check kein SecurityAgent mehr prüfen
+
+-- Lockfile: GLEICHER Pfad wie in AllPrivacyPermissions -> beide Scripts warten
+-- gegenseitig aufeinander (gleichzeitiger Start möglich, laufen nacheinander).
+property _GlobalLockFile : "/tmp/tomedo_macrights.lock"
+property _GlobalLockWaitTime : 120
 
 
 -- #########################################################
@@ -384,9 +389,55 @@ on setCheckboxesInOptionen(_TargetVal)
 end setCheckboxesInOptionen
 
 
+-- ###################################################
+-- #  HANDLER: Lockfile (geteilt mit AllPrivacyPerm.) #
+-- #  ATOMAR per mkdir (Lock = Verzeichnis) -> auch    #
+-- #  bei EXAKT gleichzeitigem Start gewinnt nur einer #
+-- #  (touch/-f hätte hier eine Race Condition).       #
+-- #  LOCK: wartet bis _MaxWaitSeconds auf Freigabe,   #
+-- #  danach Übernahme (Zero-Touch). Stale >300s =     #
+-- #  Crash-Überbleibsel -> sofort übernehmen.         #
+-- ###################################################
+
+on ManageLockFile(_Action, _LockFilePath, _MaxWaitSeconds)
+    if _Action is "LOCK" then
+        -- Kompletter Warte-/Stale-Check in EINEM Shell-Aufruf.
+        -- Status: free/waited/stale/stolen. Lock am Ende immer gesetzt (touch).
+        set _MaxIter to _MaxWaitSeconds * 2
+        set _LockStatus to "free"
+        try
+            set _LockStatus to do shell script "LOCK=" & quoted form of _LockFilePath & "; STALE=300; st=free; i=0; while ! mkdir \"$LOCK\" 2>/dev/null; do age=$(( $(date +%s) - $(stat -f %m \"$LOCK\" 2>/dev/null || echo 0) )); if [ $age -gt $STALE ]; then rm -rf \"$LOCK\"; st=stale; continue; fi; if [ $i -ge " & _MaxIter & " ]; then rm -rf \"$LOCK\"; st=stolen; continue; fi; st=waited; sleep 0.5; i=$((i+1)); done; echo $st"
+        on error _LockErr
+            log "ManageLockFile: Shell-Fehler (" & _LockErr & ") – setze Lock direkt."
+            try
+                do shell script "mkdir -p " & quoted form of _LockFilePath
+            end try
+        end try
+
+        if _LockStatus is "stale" then
+            log "Lockfile war stale (>300s, vermutlich Crash-Überbleibsel) – übernommen."
+        else if _LockStatus is "stolen" then
+            log "WARNUNG: Lock nach " & _MaxWaitSeconds & "s nicht freigegeben – übernommen (Zero-Touch hat Vorrang, paralleler Lauf möglich)."
+        else if _LockStatus is "waited" then
+            log "Lock wurde freigegeben – übernommen."
+        end if
+
+    else if _Action is "UNLOCK" then
+        try
+            do shell script "rm -rf " & quoted form of _LockFilePath
+        end try
+    end if
+end ManageLockFile
+
+
 -- ###############################
 -- #  HAUPTPROGRAMM              #
 -- ###############################
+
+-- Lock setzen (wartet ggf. auf AllPrivacyPermissions)
+my ManageLockFile("LOCK", _GlobalLockFile, _GlobalLockWaitTime)
+
+try
 
 -- Sharing-Pane öffnen
 tell application "System Settings"
@@ -513,3 +564,13 @@ closeSheet()
 display notification "ManageARD " & _Mode & " abgeschlossen." with title "ManageARD"
 
 tell application "System Settings" to quit
+
+-- Lock freigeben (normales Ende)
+my ManageLockFile("UNLOCK", _GlobalLockFile, _GlobalLockWaitTime)
+
+on error _MainErr number _MainNum
+    -- Lock immer freigeben; unerwartete Fehler danach sichtbar weiterreichen
+    -- (-128 = sauberer Abbruch, z.B. "UI nicht unterstützt" -> schlucken).
+    my ManageLockFile("UNLOCK", _GlobalLockFile, _GlobalLockWaitTime)
+    if _MainNum is not -128 then error _MainErr number _MainNum
+end try
