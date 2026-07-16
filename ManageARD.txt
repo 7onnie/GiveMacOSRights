@@ -1,5 +1,5 @@
 -- ===========================================================
--- ManageARD.applescript v6
+-- ManageARD.applescript v7
 -- Entfernte Verwaltung, Anmeldung & Scriptsteuerung konfigurieren
 -- NUR FÜR TESTSYSTEME
 -- ===========================================================
@@ -23,42 +23,58 @@ property _SecAgentDone : false   -- Nach erstem Check kein SecurityAgent mehr pr
 
 
 -- #########################################################
--- #  HANDLER: 1-Feld-Auth-Dialog füllen                   #
--- #  Vorausgefüllten User korrigieren (lokaler Admin ≠    #
--- #  _AdminUser); Passwort immer per AX-Value setzen      #
--- #  (idempotent, layout-unabhängig)                      #
+-- #  HANDLER: Auth-Felder zuverlässig per keystroke füllen #
+-- #  Passwort-Feld per subrole (AXSecureTextField) finden, #
+-- #  optionales Username-Feld = nicht-secure text field.   #
+-- #  Beide per keystroke; Username mit Tab committen.       #
+-- #  WICHTIG: "set value" committet den Username NICHT      #
+-- #  (springt beim Submit zurück) und wird auf Secure-      #
+-- #  Feldern ignoriert (Passwort bliebe leer) - macOS 26.   #
 -- #########################################################
 
-on fillSingleFieldAuth(_U, _P, _Box)
+on fillAuthByKeystroke(_U, _P, _Container)
     tell application "System Events"
-        set _PreUser to ""
+        set _PassF to missing value
+        set _UserF to missing value
         try
-            set _Vals to value of every static text of _Box
-            repeat with _STV in _Vals
-                if _STV is not missing value then
-                    set _T to _STV as text
-                    if _T is not "" and _T does not contain " " and _T does not contain ":" and _T does not contain "." then
-                        set _PreUser to _T
-                        exit repeat
-                    end if
+            repeat with _TF in every text field of _Container
+                set _SR to ""
+                try
+                    set _SR to (subrole of _TF) as text
+                end try
+                if _SR is "AXSecureTextField" then
+                    set _PassF to _TF
+                else
+                    if _UserF is missing value then set _UserF to _TF
                 end if
             end repeat
         end try
-        if _PreUser is not "" and _PreUser is not _U then
-            -- User-Feld per Shift-Tab erreichen; nur tippen wenn Fokus gesetzt werden konnte
+        if _PassF is missing value then return false
+        -- Username setzen wenn ein (nicht-secure) User-Feld existiert
+        if _UserF is not missing value then
             try
-                set focused of text field 1 of _Box to true
-                key code 48 using {shift down}
+                set focused of _UserF to true
                 delay 0.1
                 keystroke "a" using {command down}
                 delay 0.05
                 keystroke _U
                 delay 0.1
+                key code 48   -- Tab: End-Editing feuern -> Username committen
+                delay 0.15
             end try
         end if
-        set value of text field 1 of _Box to _P
+        -- Passwort per keystroke (Fokus explizit setzen, Tab-Ziel egal)
+        try
+            set focused of _PassF to true
+            delay 0.05
+            keystroke "a" using {command down}
+            delay 0.05
+            keystroke _P
+            delay 0.1
+        end try
+        return true
     end tell
-end fillSingleFieldAuth
+end fillAuthByKeystroke
 
 
 -- ###################################
@@ -77,14 +93,7 @@ on handleAuthDialog(_U, _P)
                         repeat with _W in every window
                             set _F to every text field of _W
                             if (count of _F) > 0 then
-                                if (count of _F) >= 2 then
-                                    set value of text field 1 to _U
-                                    delay 0.15
-                                    set value of text field 2 to _P
-                                else
-                                    -- 1 Textfeld: User-Mismatch korrigieren + Passwort setzen
-                                    my fillSingleFieldAuth(_U, _P, _W)
-                                end if
+                                my fillAuthByKeystroke(_U, _P, _W)
                                 delay 0.2
                                 key code 36
                                 return true
@@ -116,14 +125,7 @@ on handleAuthDialog(_U, _P)
                             tell sheet 1 of window 1
                                 set _F to every text field
                                 if (count of _F) > 0 then
-                                    if (count of _F) >= 2 then
-                                        set value of text field 1 to _U
-                                        delay 0.15
-                                        set value of text field 2 to _P
-                                    else
-                                        -- 1 Textfeld: User-Mismatch korrigieren + Passwort setzen
-                                        my fillSingleFieldAuth(_U, _P, it)
-                                    end if
+                                    my fillAuthByKeystroke(_U, _P, it)
                                     delay 0.2
                                     key code 36
                                     delay 0.5
