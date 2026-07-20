@@ -11,19 +11,14 @@
 -- Admin-Credentials: benutzt wenn das User-Feld im Auth-Dialog leer/fokussiert
 -- ist (eingeloggter User ist KEIN Admin -> Admin muss eingegeben werden).
 -- WICHTIG: Muss ein ECHTER Admin sein. Ein Sharing-Toggle verlangt Admin-
--- Autorisierung; ein Nicht-Admin-User (z.B. GUI-User "praxis" auf Systemen wo
--- er nicht in der admin-Gruppe ist) wird von macOS abgelehnt -> Dialog bleibt
--- stehen. Auf dem aktuellen Testsystem (10.0.0.106) ist der Admin "admin".
 property _AdminUser : "admin"
-property _AdminPass : "Admin!897RE"
+property _AdminPass : "admin"
 
 -- Fallback-/User-Credentials (optional): benutzt wenn im Auth-Dialog bereits
 -- dieser Username vorausgefüllt ist, weil er AKTUELL Admin ist und macOS sein
 -- Passwort verlangt (User-Feld dann nicht änderbar). "" = Fallback aus.
--- Auf 10.0.0.106 ist der GUI-User "praxis" KEIN Admin -> Fallback AUS, damit
--- immer die echten Admin-Credentials (Fall B) getippt werden.
-property _FallbackUser : ""
-property _FallbackPass : ""
+property _FallbackUser : "praxis"
+property _FallbackPass : "praxis"
 
 -- "Activate"   -> Ersteinrichtung (alles einschalten inkl. Sub-Optionen)
 -- "Reactivate" -> Alle Toggles & Sub-Optionen einmal aus und wieder an

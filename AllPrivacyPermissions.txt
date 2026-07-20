@@ -1,5 +1,5 @@
 -- ===========================================================
--- AllPrivacyPermissions.applescript v21
+-- AllPrivacyPermissions.applescript v22
 -- Schnell & gezielt: Alle Rechte für alle Apps aktivieren
 -- NUR FÜR TESTSYSTEME
 -- ===========================================================
@@ -10,8 +10,11 @@
 
 -- Admin-Credentials: benutzt wenn das User-Feld im Auth-Dialog leer/fokussiert
 -- ist (eingeloggter User ist KEIN Admin -> Admin muss eingegeben werden).
-property _AdminUser : "praxis"
-property _AdminPass : "praxis"
+-- WICHTIG: Muss ein ECHTER Admin sein. Ein Auth-Dialog verlangt Admin-
+-- Autorisierung; ein Nicht-Admin-User wird von macOS abgelehnt und der Dialog
+-- bleibt stehen. Pro Zielsystem auf den dortigen Admin anpassen.
+property _AdminUser : "admin"
+property _AdminPass : "admin"
 
 -- Fallback-/User-Credentials (optional): benutzt wenn im Auth-Dialog bereits
 -- dieser Username vorausgefüllt ist, weil er AKTUELL Admin ist und macOS sein
@@ -591,7 +594,7 @@ end ManageLockFile
 
 -- Lock setzen (wartet ggf. auf ManageARD)
 my ManageLockFile("LOCK", _GlobalLockFile, _GlobalLockWaitTime)
-
+delay 0.5
 try
 
 tell application "System Settings"
